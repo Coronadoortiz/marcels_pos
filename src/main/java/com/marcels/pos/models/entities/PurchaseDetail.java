@@ -26,11 +26,11 @@ public class PurchaseDetail {
 
     @ManyToOne
     @JoinColumn(name = "id_purchase", nullable = false)
-    private Long idPurchase;
+    private Purchase purchase;
 
     @ManyToOne
     @JoinColumn(name = "id_product", nullable = false)
-    private Long idProduct;
+    private Product product;
 
     @Column(name = "amount_purchased")
     private Integer amountPurchased;
