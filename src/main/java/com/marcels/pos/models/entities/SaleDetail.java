@@ -19,5 +19,23 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 
 public class SaleDetail {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_sale_detail")
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "id_sale", nullable = false)
+    private Sale sale;
+
+    @ManyToOne
+    @JoinColumn(name = "id_product", nullable = false)
+    private Product product;
+
+    @Column(name = "amount_products")
+    private Integer amountProducts;
+
+    @Column(name = "unit_product_price")
+    private Double unitProductPrice;
 
 }
