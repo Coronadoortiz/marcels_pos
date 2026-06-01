@@ -26,6 +26,8 @@ public class SaleDetail {
 
     @ManyToOne
     @JoinColumn(name = "id_sale", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties("saleDetails") // <-- AGREGA ESTO
+    @com.fasterxml.jackson.annotation.JsonBackReference
     private Sale sale;
 
     @ManyToOne

@@ -40,5 +40,6 @@ public class Sale {
     private PaymentMethod paymentMethod;
     
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
+    @com.fasterxml.jackson.annotation.JsonManagedReference // <-- AGREGA ESTO
     private List<SaleDetail> saleDetails;
 }
