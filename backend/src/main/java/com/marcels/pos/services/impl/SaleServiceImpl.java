@@ -7,12 +7,14 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.marcels.pos.models.entities.Product;
 import com.marcels.pos.models.entities.Sale;
 import com.marcels.pos.models.entities.SaleDetail;
 import com.marcels.pos.models.entities.Stock;
+import com.marcels.pos.models.repositories.ProductRepository;
 import com.marcels.pos.models.repositories.SaleDetailRepository;
 import com.marcels.pos.models.repositories.SaleRepository;
-import com.marcels.pos.models.repositories.StockRepository;
+import com.marcels.pos.models.repositories.StockRepository; // Asegúrate de tener este import
 import com.marcels.pos.services.SaleService;
 
 @Service
@@ -21,19 +23,22 @@ public class SaleServiceImpl implements SaleService {
     private final SaleRepository saleRepository;
     private final SaleDetailRepository saleDetailRepository;
     private final StockRepository stockRepository;
+    private final ProductRepository productRepository; // Inyectamos el repositorio de productos
 
     public SaleServiceImpl(SaleRepository saleRepository, 
                            SaleDetailRepository saleDetailRepository, 
-                           StockRepository stockRepository) {
+                           StockRepository stockRepository,
+                           ProductRepository productRepository) {
         this.saleRepository = saleRepository;
         this.saleDetailRepository = saleDetailRepository;
         this.stockRepository = stockRepository;
+        this.productRepository = productRepository;
     }
 
     @Override
-    @Transactional // ¡All-or-Nothing! Si algo falla o no hay stock, se revierte todo de Neon automáticamente
+    @Transactional // All-or-Nothing! Si algo falla, se revierte todo de Neon automáticamente
     public Sale saveSale(Sale sale) {
-        // 1. Validar que la venta contenga productos en su estructura
+        // 1. Validar que la venta contenga productos
         if (sale.getSaleDetails() == null || sale.getSaleDetails().isEmpty()) {
             throw new IllegalArgumentException("Cannot process a sale without products.");
         }
@@ -43,19 +48,39 @@ public class SaleServiceImpl implements SaleService {
             sale.setDateSale(LocalDateTime.now());
         }
 
-        // 3. ¡EL PASO CLÍTICO CRUCIAL!: Enlazar cada detalle con el objeto Venta Padre
-        // Esto previene el error 500 al evitar que Hibernate intente insertar 'id_sale' como NULL en Neon
+        // 3. Enlazar detalles con el padre y ASIGNAR EL PRECIO REAL DEL CATÁLOGO
+        BigDecimal totalCalculadoVenta = BigDecimal.ZERO;
+
         for (SaleDetail detail : sale.getSaleDetails()) {
             detail.setSale(sale);
+
+            // EXTRAEMOS EL PRODUCTO REAL DE LA BASE DE DATOS PARA OBTENER SU PRECIO GUARDADO
+            Product productReal = productRepository.findById(detail.getProduct().getIdProduct())
+                    .orElseThrow(() -> new RuntimeException("Product not found with ID: " 
+                            + detail.getProduct().getIdProduct()));
+            
+            // Reemplazamos el precio del JSON por el precio real del catálogo (sellingValueProduct)
+            detail.setUnitProductPrice(productReal.getSellingValueProduct());
+            
+            // Re-inyectamos el producto completo para que el flujo de stock no tenga problemas
+            detail.setProduct(productReal);
+
+            // (Opcional) Calculamos el subtotal de esta línea para acumularlo en el total general
+            BigDecimal precioBD = BigDecimal.valueOf(productReal.getSellingValueProduct());
+            BigDecimal cantidad = BigDecimal.valueOf(detail.getAmountProducts());
+            totalCalculadoVenta = totalCalculadoVenta.add(precioBD.multiply(cantidad));
         }
 
-        // 4. Validar disponibilidad de inventario para todos los productos solicitados
+        // 4. Forzar que el totalAmountSale de la cabecera sea el calculado matemáticamente por el servidor
+        sale.setTotalAmountSale(totalCalculadoVenta);
+
+        // 5. Validar disponibilidad de inventario para todos los productos solicitados
         validateStockAvailability(sale.getSaleDetails());
 
-        // 5. Restar de forma segura las unidades de la tabla de Inventario (tbl_stocks)
+        // 6. Restar de forma segura las unidades de la tabla de Inventario (tbl_stocks)
         updateInventoryStock(sale.getSaleDetails());
 
-        // 6. Guardar la estructura unificada en la base de datos (Guarda cabecera y detalles en cascada)
+        // 7. Guardar en cascada
         return saleRepository.save(sale);
     }
 
@@ -67,10 +92,9 @@ public class SaleServiceImpl implements SaleService {
                     .orElseThrow(() -> new RuntimeException("Inventory record missing for product ID: " 
                             + detail.getProduct().getIdProduct()));
 
-            // Si el cliente solicita más de lo disponible en stock, se frena todo el flujo transaccional
             if (stock.getProductQuantity() < detail.getAmountProducts()) {
-                throw new RuntimeException("Insufficient stock for product ID: " 
-                        + detail.getProduct().getIdProduct()
+                throw new RuntimeException("Insufficient stock for product: " 
+                        + detail.getProduct().getNameProduct()
                         + ". Available: " + stock.getProductQuantity() 
                         + ", Requested: " + detail.getAmountProducts());
             }
@@ -79,14 +103,9 @@ public class SaleServiceImpl implements SaleService {
 
     private void updateInventoryStock(List<SaleDetail> details) {
         for (SaleDetail detail : details) {
-            // Recuperar el registro de stock actual
             Stock stock = stockRepository.findByProduct(detail.getProduct()).get();
-
-            // Calcular y setear la nueva cantidad remanente
             int finalQuantity = stock.getProductQuantity() - detail.getAmountProducts();
             stock.setProductQuantity(finalQuantity);
-
-            // Guardar la actualización en la tabla tbl_stocks de Neon
             stockRepository.save(stock);
         }
     }
