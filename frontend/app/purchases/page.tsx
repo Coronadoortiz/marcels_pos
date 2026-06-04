@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { sampleProducts, sampleSuppliers, categories, type Product, type Supplier } from '@/lib/data'
+import { useState, useEffect } from 'react'
+import { categories, type Product, type Supplier } from '@/lib/data'
 
 interface PurchaseItem {
   product: Product
@@ -11,7 +11,10 @@ interface PurchaseItem {
 }
 
 export default function PurchasesPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>(sampleSuppliers)
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
@@ -19,31 +22,55 @@ export default function PurchasesPage() {
   const [showAddProductModal, setShowAddProductModal] = useState(false)
 
   const [newSupplier, setNewSupplier] = useState({
-    name: '',
-    taxId: '',
-    phone: '',
+    nitProvider: '',
+    nameProvider: '',
+    phoneNumber: '',
     email: '',
   })
 
   const [newProduct, setNewProduct] = useState({
-    name: '',
+    nameProduct: '',
     category: categories[0],
     description: '',
     purchasePrice: 0,
-    salePrice: 0,
+    sellingValueProduct: 0,
     stock: 0,
   })
 
+  // Función unificada para sincronizar datos reales desde Spring Boot
+  const loadInitialData = async () => {
+    try {
+      const [resSuppliers, resProducts] = await Promise.all([
+        fetch('http://localhost:8080/api/providers'),
+        fetch('http://localhost:8080/api/products')
+      ])
+      
+      const suppliersData = await resSuppliers.json()
+      const productsData = await resProducts.json()
+
+      setSuppliers(suppliersData)
+      setAvailableProducts(productsData)
+      setLoading(false)
+    } catch (error) {
+      console.error("Fallo al sincronizar datos con el POS Server:", error)
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadInitialData()
+  }, [])
+
   const addProductToPurchase = (product: Product) => {
-    const existing = purchaseItems.find((item) => item.product.id === product.id)
+    const existing = purchaseItems.find((item) => item.product.idProduct === product.idProduct)
     if (existing) {
       setPurchaseItems((prev) =>
         prev.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.product.idProduct === product.idProduct ? { ...item, quantity: item.quantity + 1 } : item
         )
       )
     } else {
-      setPurchaseItems((prev) => [...prev, { product, quantity: 1, price: product.purchasePrice }])
+      setPurchaseItems((prev) => [...prev, { product, quantity: 1, price: product.purchasePrice || 0 }])
     }
     setShowAddProductModal(false)
   }
@@ -51,13 +78,13 @@ export default function PurchasesPage() {
   const updatePurchaseItem = (productId: number, field: 'quantity' | 'price', value: number) => {
     setPurchaseItems((prev) =>
       prev.map((item) =>
-        item.product.id === productId ? { ...item, [field]: value } : item
+        item.product.idProduct === productId ? { ...item, [field]: value } : item
       )
     )
   }
 
   const removePurchaseItem = (productId: number) => {
-    setPurchaseItems((prev) => prev.filter((item) => item.product.id !== productId))
+    setPurchaseItems((prev) => prev.filter((item) => item.product.idProduct !== productId))
   }
 
   const purchaseTotal = purchaseItems.reduce(
@@ -65,45 +92,82 @@ export default function PurchasesPage() {
     0
   )
 
-  const createSupplier = () => {
-    if (!newSupplier.name || !newSupplier.taxId) {
+  // Registrar Nuevo Proveedor en tiempo real (POST /api/providers)
+  const createSupplier = async () => {
+    if (!newSupplier.nameProvider || !newSupplier.nitProvider) {
       alert('Please fill in required fields')
       return
     }
-    const supplier: Supplier = {
-      id: suppliers.length + 1,
-      ...newSupplier,
+
+    try {
+      const response = await fetch('http://localhost:8080/api/providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSupplier)
+      })
+
+      if (response.ok) {
+        const savedProvider = await response.json()
+        alert('🎉 Supplier created successfully in Neon!')
+        
+        // Recargar e inmediatamente seleccionar el nuevo proveedor
+        await loadInitialData()
+        setSelectedSupplier(savedProvider)
+        setNewSupplier({ nameProvider: '', nitProvider: '', phoneNumber: '', email: '' })
+        setShowSupplierModal(false)
+      } else {
+        alert('Failed to register supplier.')
+      }
+    } catch (error) {
+      console.error("Error creating provider:", error)
     }
-    setSuppliers((prev) => [...prev, supplier])
-    setSelectedSupplier(supplier)
-    setNewSupplier({ name: '', taxId: '', phone: '', email: '' })
-    setShowSupplierModal(false)
   }
 
-  const createProduct = () => {
-    if (!newProduct.name || !newProduct.category) {
+  // Registrar un producto directo de catálogo antes de meterlo a la orden de compra
+  const createProduct = async () => {
+    if (!newProduct.nameProduct || !newProduct.category) {
       alert('Please fill in required fields')
       return
     }
-    const product: Product = {
-      id: sampleProducts.length + 1,
-      sku: `NEW-${Date.now()}`,
-      ...newProduct,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=200&fit=crop',
+
+    const payload = {
+      sku: `SKU-${Date.now().toString().slice(-6)}`,
+      nameProduct: newProduct.nameProduct,
+      category: newProduct.category,
+      description: newProduct.description,
+      purchasePrice: newProduct.purchasePrice,
+      sellingValueProduct: newProduct.sellingValueProduct,
+      stock: newProduct.stock
     }
-    addProductToPurchase(product)
-    setNewProduct({
-      name: '',
-      category: categories[0],
-      description: '',
-      purchasePrice: 0,
-      salePrice: 0,
-      stock: 0,
-    })
-    setShowProductModal(false)
+
+    try {
+      const response = await fetch('http://localhost:8080/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (response.ok) {
+        const savedProduct = await response.json()
+        addProductToPurchase(savedProduct)
+        await loadInitialData()
+        setNewProduct({
+          nameProduct: '',
+          category: categories[0],
+          description: '',
+          purchasePrice: 0,
+          sellingValueProduct: 0,
+          stock: 0,
+        })
+        setShowProductModal(false)
+      }
+    } catch (error) {
+      console.error("Error creating product:", error)
+    }
   }
 
-  const registerPurchaseOrder = () => {
+  // ENVIAR TRANSACCIÓN COMPLETA AL BACKEND (POST /api/purchases)
+  const registerPurchaseOrder = async () => {
     if (!selectedSupplier) {
       alert('Please select a supplier')
       return
@@ -112,9 +176,50 @@ export default function PurchasesPage() {
       alert('Please add products to the purchase order')
       return
     }
-    alert(`Purchase Order registered successfully!\n\nSupplier: ${selectedSupplier.name}\nTotal: $${purchaseTotal.toFixed(2)}`)
-    setPurchaseItems([])
-    setSelectedSupplier(null)
+
+    // Armamos la jerarquía exacta que tu PurchaseServiceImpl espera
+    const purchaseRequest = {
+      provider: {
+        idProvider: selectedSupplier.idProvider
+      },
+      purchaseDetails: purchaseItems.map((item) => ({
+        amountPurchased: item.quantity,
+        purchaseProductPrice: item.price,
+        product: {
+          idProduct: item.product.idProduct
+        }
+      }))
+    }
+
+    try {
+      const response = await fetch('http://localhost:8080/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(purchaseRequest)
+      })
+
+      if (response.ok) {
+        alert(`🎉 Purchase Order registered successfully in Neon!\n\nSupplier: ${selectedSupplier.nameProvider}\nTotal: $${purchaseTotal.toFixed(2)}`)
+        setPurchaseItems([])
+        setSelectedSupplier(null)
+        await loadInitialData() // Refresca inventario local
+      } else {
+        alert('❌ Internal Server Error 500: Check relationship bindings or if stock record exists.')
+      }
+    } catch (error) {
+      console.error("Fallo de red:", error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+        <div className="text-center">
+          <div className="spinner-border text-success mb-2" role="status"></div>
+          <p className="text-muted fw-bold">Synchronizing Purchase Module with Neon Database...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -153,16 +258,16 @@ export default function PurchasesPage() {
                 <label className="form-label fw-medium">Select Supplier</label>
                 <select
                   className="form-select"
-                  value={selectedSupplier?.id || ''}
+                  value={selectedSupplier?.idProvider || ''}
                   onChange={(e) => {
-                    const supplier = suppliers.find((s) => s.id === parseInt(e.target.value))
+                    const supplier = suppliers.find((s) => s.idProvider === parseInt(e.target.value))
                     setSelectedSupplier(supplier || null)
                   }}
                 >
-                  <option value="">-- Select a supplier --</option>
+                  <option value="">-- Select a supplier real --</option>
                   {suppliers.map((supplier) => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name} - {supplier.taxId}
+                    <option key={supplier.idProvider} value={supplier.idProvider}>
+                      {supplier.nameProvider} - {supplier.nitProvider}
                     </option>
                   ))}
                 </select>
@@ -182,15 +287,15 @@ export default function PurchasesPage() {
                 <div className="row">
                   <div className="col-md-3">
                     <small className="text-muted d-block">Name</small>
-                    <strong>{selectedSupplier.name}</strong>
+                    <strong>{selectedSupplier.nameProvider}</strong>
                   </div>
                   <div className="col-md-3">
                     <small className="text-muted d-block">Tax ID (NIT)</small>
-                    <strong>{selectedSupplier.taxId}</strong>
+                    <strong>{selectedSupplier.nitProvider}</strong>
                   </div>
                   <div className="col-md-3">
                     <small className="text-muted d-block">Phone</small>
-                    <strong>{selectedSupplier.phone}</strong>
+                    <strong>{selectedSupplier.phoneNumber}</strong>
                   </div>
                   <div className="col-md-3">
                     <small className="text-muted d-block">Email</small>
@@ -241,22 +346,24 @@ export default function PurchasesPage() {
                       <td colSpan={5} className="text-center py-5 text-muted">
                         <i className="bi bi-inbox fs-1 d-block mb-3"></i>
                         <p className="mb-0">No products added yet</p>
-                        <small>Click &quot;Add Existing Product&quot; or &quot;Create New Product&quot; to start</small>
+                        <small>Click &quot;Add Existing Product&quot; to start the procurement process</small>
                       </td>
                     </tr>
                   ) : (
                     purchaseItems.map((item) => (
-                      <tr key={item.product.id}>
+                      <tr key={item.product.idProduct}>
                         <td>
                           <div className="d-flex align-items-center">
-                            <img
-                              src={item.product.image}
-                              alt={item.product.name}
-                              className="rounded me-3"
-                              style={{ width: 48, height: 48, objectFit: 'cover' }}
-                            />
+                            {item.product.image && (
+                              <img
+                                src={item.product.image}
+                                alt={item.product.nameProduct}
+                                className="rounded me-3"
+                                style={{ width: 48, height: 48, objectFit: 'cover' }}
+                              />
+                            )}
                             <div>
-                              <div className="fw-medium">{item.product.name}</div>
+                              <div className="fw-medium">{item.product.nameProduct}</div>
                               <small className="text-muted">{item.product.sku}</small>
                             </div>
                           </div>
@@ -267,9 +374,11 @@ export default function PurchasesPage() {
                             className="form-control form-control-sm text-center mx-auto"
                             value={item.quantity}
                             min={1}
-                            onChange={(e) =>
-                              updatePurchaseItem(item.product.id, 'quantity', parseInt(e.target.value) || 1)
-                            }
+                            onChange={(e) => {
+                              if(item.product.idProduct) {
+                                updatePurchaseItem(item.product.idProduct, 'quantity', parseInt(e.target.value) || 1)
+                              }
+                            }}
                             style={{ width: 80 }}
                           />
                         </td>
@@ -282,9 +391,11 @@ export default function PurchasesPage() {
                               value={item.price}
                               min={0}
                               step={0.01}
-                              onChange={(e) =>
-                                updatePurchaseItem(item.product.id, 'price', parseFloat(e.target.value) || 0)
-                              }
+                              onChange={(e) => {
+                                if(item.product.idProduct) {
+                                  updatePurchaseItem(item.product.idProduct, 'price', parseFloat(e.target.value) || 0)
+                                }
+                              }}
                             />
                           </div>
                         </td>
@@ -294,7 +405,7 @@ export default function PurchasesPage() {
                         <td className="text-center">
                           <button
                             className="btn btn-sm btn-outline-danger"
-                            onClick={() => removePurchaseItem(item.product.id)}
+                            onClick={() => item.product.idProduct && removePurchaseItem(item.product.idProduct)}
                           >
                             <i className="bi bi-trash"></i>
                           </button>
@@ -313,7 +424,7 @@ export default function PurchasesPage() {
           <div className="col-md-6 offset-md-6">
             <div className="card border-0 shadow-sm">
               <div className="card-body">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-between align-items-center mb-4">
                   <span className="fs-4 fw-bold">Purchase Total:</span>
                   <span className="fs-3 fw-bold text-success">${purchaseTotal.toFixed(2)}</span>
                 </div>
@@ -351,8 +462,8 @@ export default function PurchasesPage() {
                   <input
                     type="text"
                     className="form-control"
-                    value={newSupplier.name}
-                    onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
+                    value={newSupplier.nameProvider}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, nameProvider: e.target.value })}
                   />
                 </div>
                 <div className="mb-3">
@@ -360,8 +471,8 @@ export default function PurchasesPage() {
                   <input
                     type="text"
                     className="form-control"
-                    value={newSupplier.taxId}
-                    onChange={(e) => setNewSupplier({ ...newSupplier, taxId: e.target.value })}
+                    value={newSupplier.nitProvider}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, nitProvider: e.target.value })}
                   />
                 </div>
                 <div className="mb-3">
@@ -369,8 +480,8 @@ export default function PurchasesPage() {
                   <input
                     type="text"
                     className="form-control"
-                    value={newSupplier.phone}
-                    onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
+                    value={newSupplier.phoneNumber}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, phoneNumber: e.target.value })}
                   />
                 </div>
                 <div className="mb-3">
@@ -417,23 +528,26 @@ export default function PurchasesPage() {
               </div>
               <div className="modal-body">
                 <div className="row g-3">
-                  {sampleProducts.map((product) => (
-                    <div key={product.id} className="col-md-4">
+                  {availableProducts.map((product) => (
+                    <div key={product.idProduct} className="col-md-4">
                       <div
                         className="card product-card h-100"
+                        style={{ cursor: 'pointer' }}
                         onClick={() => addProductToPurchase(product)}
                       >
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="card-img-top"
-                          style={{ height: 120, objectFit: 'cover' }}
-                        />
+                        {product.image && (
+                          <img
+                            src={product.image}
+                            alt={product.nameProduct}
+                            className="card-img-top"
+                            style={{ height: 120, objectFit: 'cover' }}
+                          />
+                        )}
                         <div className="card-body p-2">
-                          <h6 className="card-title small mb-1">{product.name}</h6>
+                          <h6 className="card-title small mb-1">{product.nameProduct}</h6>
                           <p className="mb-0 small">
-                            <span className="text-muted">Purchase:</span>{' '}
-                            <span className="fw-bold text-success">${product.purchasePrice.toFixed(2)}</span>
+                            <span className="text-muted">Catalog Price:</span>{' '}
+                            <span className="fw-bold text-success">${product.purchasePrice}</span>
                           </p>
                         </div>
                       </div>
@@ -467,8 +581,8 @@ export default function PurchasesPage() {
                   <input
                     type="text"
                     className="form-control"
-                    value={newProduct.name}
-                    onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                    value={newProduct.nameProduct}
+                    onChange={(e) => setNewProduct({ ...newProduct, nameProduct: e.target.value })}
                   />
                 </div>
                 <div className="mb-3">
@@ -516,9 +630,9 @@ export default function PurchasesPage() {
                       <input
                         type="number"
                         className="form-control"
-                        value={newProduct.salePrice}
+                        value={newProduct.sellingValueProduct}
                         onChange={(e) =>
-                          setNewProduct({ ...newProduct, salePrice: parseFloat(e.target.value) || 0 })
+                          setNewProduct({ ...newProduct, sellingValueProduct: parseFloat(e.target.value) || 0 })
                         }
                       />
                     </div>

@@ -1,38 +1,38 @@
-package com.marcels.pos.models.entities;
+package com.marcels.pos.models.entities; // Revisa que sea tu paquete real
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
+import lombok.Data; // Si usas Lombok para getters y setters
 
 @Entity
 @Table(name = "tbl_products")
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
-
 public class Product {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_product")
     private Long idProduct;
 
-    @Column(name = "name_product", nullable = false, length = 100)
+    @Column(name = "sku")
+    private String sku;
+
+    @Column(name = "name_product")
     private String nameProduct;
 
-    @Column(name = "selling_value_product" , nullable = false)
+    @Column(name = "selling_value_product")
     private Double sellingValueProduct;
 
+    @Column(name = "purchase_price")
+    private Double purchasePrice;
+
+    @Column(name = "image")
+    private String image;
+
     @ManyToOne
-    @JoinColumn(name = "id_category", nullable = false)
+    @JoinColumn(name = "id_category")
     private Category category;
 
-
+    // 🟢 LA SOLUCIÓN: Atributo volátil para Next.js
+    @Transient 
+    private Integer stock = 0; // Inicializa por defecto en 0
 }

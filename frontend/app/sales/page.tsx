@@ -1,13 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { sampleProducts, type Product, type CartItem } from '@/lib/data'
+import { useState, useEffect } from 'react'
+import { type Product, type CartItem } from '@/lib/data'
 
 export default function SalesPage() {
-  const [cart, setCart] = useState<CartItem[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [cart, setCart] = useState<CartItem[]>([]) // Usa exactamente tu estructura
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  
   const [invoiceData, setInvoiceData] = useState<{
     invoiceNumber: string
     date: string
@@ -17,21 +20,49 @@ export default function SalesPage() {
     total: number
   } | null>(null)
 
-  const filteredProducts = sampleProducts.filter(
+  // 1. Sincronizar catálogo real desde tu backend de Spring Boot
+  const loadLiveCatalog = () => {
+    setLoading(true)
+    fetch('http://localhost:8080/api/products')
+      .then((res) => res.json())
+      .then((data) => {
+        setProducts(data)
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error("Error conectando terminal POS con backend:", err)
+        setLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    loadLiveCatalog()
+  }, [])
+
+  // Filtrado reactivo en pantalla usando las columnas reales de Neon
+  const filteredProducts = products.filter(
     (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+      p.nameProduct?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Mapeo adaptado: Copia de Product a las propiedades estrictas de tu CartItem
   const addToCart = (product: Product) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id)
+      const existing = prev.find((item) => item.idProduct === product.idProduct)
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.idProduct === product.idProduct ? { ...item, quantity: item.quantity + 1 } : item
         )
       }
-      return [...prev, { ...product, quantity: 1 }]
+      // Creamos el objeto respetando de forma estricta tu interfaz CartItem
+      const newItem: CartItem = {
+        idProduct: product.idProduct || 0,
+        nameProduct: product.nameProduct,
+        price: product.sellingValueProduct, // Mapeamos sellingValueProduct de la BD a tu .price de la vista
+        quantity: 1                         // Mapeamos a tu propiedad .quantity
+      }
+      return [...prev, newItem]
     })
   }
 
@@ -40,20 +71,21 @@ export default function SalesPage() {
       removeFromCart(id)
       return
     }
-    setCart((prev) => prev.map((item) => (item.id === id ? { ...item, quantity } : item)))
+    setCart((prev) => prev.map((item) => (item.idProduct === id ? { ...item, quantity } : item)))
   }
 
   const removeFromCart = (id: number) => {
-    setCart((prev) => prev.filter((item) => item.id !== id))
+    setCart((prev) => prev.filter((item) => item.idProduct !== id))
   }
 
-  const subtotal = cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0)
+  // Cálculos dinámicos utilizando las propiedades exactas de tu interfaz (.price y .quantity)
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const tax = subtotal * 0.19
   const total = subtotal + tax
 
   const generateInvoice = () => {
     const invoice = {
-      invoiceNumber: `INV-${Date.now()}`,
+      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
       date: new Date().toLocaleDateString(),
       items: cart,
       subtotal,
@@ -64,12 +96,42 @@ export default function SalesPage() {
     setShowInvoiceModal(true)
   }
 
-  const chargeCustomer = () => {
+  // 2. ENVIAR TRANSACCIÓN COBRO DIRECTO AL BACKEND (POST /api/sales)
+  const chargeCustomer = async () => {
     if (cart.length === 0) {
       alert('Please add products to the cart first')
       return
     }
-    generateInvoice()
+
+    const saleRequest = {
+      paymentMethod: {
+        idPaymentMethod: 1 // Efectivo/Cash por defecto
+      },
+      saleDetails: cart.map(item => ({
+        amountProducts: item.quantity, // Extraído de tu variable .quantity
+        product: {
+          idProduct: item.idProduct     // Extraído de tu variable .idProduct
+        }
+      }))
+    }
+
+    try {
+      const response = await fetch('http://localhost:8080/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(saleRequest)
+      })
+
+      if (response.ok) {
+        generateInvoice() // Dispara la factura en pantalla si Neon guardó el registro con éxito
+      } else {
+        const errLog = await response.json();
+        alert(`❌ Transaction Blocked: Insufficient stock level.\nDetails: ${errLog.message || 'Check stock levels.'}`)
+      }
+    } catch (error) {
+      console.error("Fallo crítico de red:", error)
+      alert("Error: Server offline or CORS block.")
+    }
   }
 
   const downloadPDF = () => {
@@ -80,6 +142,18 @@ export default function SalesPage() {
     setCart([])
     setShowInvoiceModal(false)
     setInvoiceData(null)
+    loadLiveCatalog() // Recarga catálogo para refrescar visualmente el stock remanente
+  }
+
+  if (loading) {
+    return (
+      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-2" role="status"></div>
+          <p className="text-muted fw-bold">Initializing Live POS Terminal...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -114,11 +188,10 @@ export default function SalesPage() {
                   <i className="bi bi-grid-3x3-gap me-2 text-primary"></i>Product Catalog
                 </h5>
                 <div className="search-wrapper">
-                  <i className="bi bi-search"></i>
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Search products..."
+                    placeholder="Search live inventory..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -127,23 +200,26 @@ export default function SalesPage() {
               <div className="card-body" style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
                 <div className="row g-3">
                   {filteredProducts.map((product) => (
-                    <div key={product.id} className="col-6">
+                    <div key={product.idProduct} className="col-6">
                       <div
                         className="card product-card h-100 border"
+                        style={{ cursor: 'pointer' }}
                         onClick={() => addToCart(product)}
                       >
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="card-img-top"
-                          style={{ height: 100, objectFit: 'cover' }}
-                        />
+                        {product.image && (
+                          <img
+                            src={product.image}
+                            alt={product.nameProduct}
+                            className="card-img-top"
+                            style={{ height: 100, objectFit: 'cover' }}
+                          />
+                        )}
                         <div className="card-body p-2">
-                          <h6 className="card-title small mb-1 text-truncate">{product.name}</h6>
+                          <h6 className="card-title small mb-1 text-truncate fw-bold">{product.nameProduct}</h6>
                           <p className="card-text mb-0">
-                            <span className="fw-bold text-primary">${product.salePrice.toFixed(2)}</span>
+                            <span className="fw-bold text-primary">${(product.sellingValueProduct || 0).toFixed(2)}</span>
                           </p>
-                          <small className="text-muted">Stock: {product.stock}</small>
+                          <small className="text-muted d-block">Stock real: {product.stock || 0}</small>
                         </div>
                       </div>
                     </div>
@@ -153,7 +229,7 @@ export default function SalesPage() {
             </div>
           </div>
 
-          {/* Center Section - Sales Table */}
+          {/* Center Section - Sales Table (PROPIEDADES SINCRONIZADAS CON TU CARTITEM) */}
           <div className="col-lg-5">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-header bg-white border-0 py-3">
@@ -179,44 +255,39 @@ export default function SalesPage() {
                           <td colSpan={5} className="text-center py-5 text-muted">
                             <i className="bi bi-cart3 fs-1 d-block mb-3"></i>
                             <p className="mb-0">No products in cart</p>
-                            <small>Click on products to add them</small>
+                            <small>Click on products catalog to build order</small>
                           </td>
                         </tr>
                       ) : (
                         cart.map((item) => (
-                          <tr key={item.id}>
+                          <tr key={item.idProduct}>
                             <td>
                               <div className="d-flex align-items-center">
-                                <img
-                                  src={item.image}
-                                  alt={item.name}
-                                  className="rounded me-2"
-                                  style={{ width: 40, height: 40, objectFit: 'cover' }}
-                                />
                                 <div>
-                                  <div className="fw-medium">{item.name}</div>
-                                  <small className="text-muted">{item.sku}</small>
+                                  <div className="fw-medium">{item.nameProduct}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="text-center">${item.salePrice.toFixed(2)}</td>
+                            {/* Leemos de tu variable item.price */}
+                            <td className="text-center">${item.price.toFixed(2)}</td>
                             <td className="text-center">
                               <input
                                 type="number"
                                 className="form-control form-control-sm text-center"
-                                value={item.quantity}
+                                value={item.quantity} // Leemos de tu variable item.quantity
                                 min={1}
-                                onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                                onChange={(e) => updateQuantity(item.idProduct, parseInt(e.target.value) || 0)}
                                 style={{ width: 70 }}
                               />
                             </td>
+                            {/* Multiplicamos usando tus variables estrictas */}
                             <td className="text-end fw-semibold">
-                              ${(item.salePrice * item.quantity).toFixed(2)}
+                              ${(item.price * item.quantity).toFixed(2)}
                             </td>
                             <td className="text-center">
                               <button
                                 className="btn btn-sm btn-outline-danger"
-                                onClick={() => removeFromCart(item.id)}
+                                onClick={() => removeFromCart(item.idProduct)}
                               >
                                 <i className="bi bi-trash"></i>
                               </button>
@@ -261,18 +332,11 @@ export default function SalesPage() {
 
                 <div className="d-grid gap-2">
                   <button
-                    className="btn btn-primary btn-lg"
+                    className="btn btn-success btn-lg"
                     onClick={chargeCustomer}
                     disabled={cart.length === 0}
                   >
-                    <i className="bi bi-credit-card me-2"></i>Charge Customer
-                  </button>
-                  <button
-                    className="btn btn-outline-primary"
-                    onClick={generateInvoice}
-                    disabled={cart.length === 0}
-                  >
-                    <i className="bi bi-file-earmark-text me-2"></i>Generate Invoice
+                    <i className="bi bi-credit-card me-2"></i>Confirm & Process Sale
                   </button>
                   <button
                     className="btn btn-outline-secondary"
@@ -307,8 +371,8 @@ export default function SalesPage() {
                 <div className="invoice-header d-flex justify-content-between align-items-start">
                   <div>
                     <h4 className="fw-bold text-primary mb-1">InventoryPro</h4>
-                    <p className="text-muted mb-0">123 Business Street</p>
-                    <p className="text-muted mb-0">contact@inventorypro.com</p>
+                    <p className="text-muted mb-0">UdeA POS Lab Integration</p>
+                    <p className="text-muted mb-0">Live Neon Connection Verified</p>
                   </div>
                   <div className="text-end">
                     <h5 className="fw-bold mb-1">{invoiceData.invoiceNumber}</h5>
@@ -328,11 +392,11 @@ export default function SalesPage() {
                     </thead>
                     <tbody>
                       {invoiceData.items.map((item) => (
-                        <tr key={item.id}>
-                          <td>{item.name}</td>
+                        <tr key={item.idProduct}>
+                          <td>{item.nameProduct}</td>
                           <td className="text-center">{item.quantity}</td>
-                          <td className="text-end">${item.salePrice.toFixed(2)}</td>
-                          <td className="text-end">${(item.salePrice * item.quantity).toFixed(2)}</td>
+                          <td className="text-end">${item.price.toFixed(2)}</td>
+                          <td className="text-end">${(item.price * item.quantity).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -355,10 +419,10 @@ export default function SalesPage() {
               </div>
               <div className="modal-footer border-0">
                 <button className="btn btn-outline-secondary" onClick={() => setShowInvoiceModal(false)}>
-                  Close
+                  Close view
                 </button>
                 <button className="btn btn-primary" onClick={downloadPDF}>
-                  <i className="bi bi-download me-2"></i>Download PDF Invoice
+                  <i className="bi bi-download me-2"></i>Download PDF
                 </button>
                 <button className="btn btn-success" onClick={clearCart}>
                   <i className="bi bi-check-circle me-2"></i>Complete Sale

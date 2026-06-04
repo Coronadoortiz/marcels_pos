@@ -1,21 +1,49 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { sampleProducts, categories } from '@/lib/data'
+import { useState, useEffect } from 'react'
+import { Product, categories } from '@/lib/data' // Importamos solo la interfaz limpia y categorías fijas
 
 export default function InventoryPage() {
+  // Estado real para almacenar los productos traídos de Neon
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
-  const filteredProducts = sampleProducts.filter((product) => {
+  // EFECTO CRUCIAL: Consume la API Rest de Spring Boot usando la IP directa de loopback para evitar "Failed to fetch"
+  useEffect(() => {
+    fetch('http://127.0.0.1:8080/api/products')
+      .then((res) => {
+        if (!res.ok) throw new Error('Network response was not ok');
+        return res.json();
+      })
+      .then((data) => {
+        setProducts(data)
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error("Fallo conectando con Spring Boot:", err)
+        setLoading(false)
+      })
+  }, [])
+
+  // Filtrado reactivo usando la lista dinámica 'products' en lugar de la estática
+  const filteredProducts = products.filter((product) => {
     const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase())
+      (product.nameProduct?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
+    
+    // Obtenemos el string de la categoría evaluando si viene como objeto relacional de la BD o string plano
+    const categoryName = typeof product.category === 'object' && product.category !== null
+      ? (product.category as any).nameCategory
+      : product.category;
+
     const matchesCategory =
-      selectedCategory === 'All' || product.category === selectedCategory
+      selectedCategory === 'All' || categoryName === selectedCategory
     return matchesSearch && matchesCategory
   })
 
@@ -27,12 +55,23 @@ export default function InventoryPage() {
 
   const getStockStatus = (stock: number) => {
     if (stock === 0) {
-      return { label: 'Out of Stock', class: 'badge-out-of-stock' }
+      return { label: 'Out of Stock', class: 'badge-out-of-stock bg-danger text-white' }
     }
     if (stock <= 10) {
-      return { label: 'Low Stock', class: 'badge-low-stock' }
+      return { label: 'Low Stock', class: 'badge-low-stock bg-warning text-dark' }
     }
-    return { label: 'In Stock', class: 'badge-in-stock' }
+    return { label: 'In Stock', class: 'badge-in-stock bg-success text-white' }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-2" role="status"></div>
+          <p className="text-muted fw-bold">Conectando con Neon & Spring Boot...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -58,7 +97,7 @@ export default function InventoryPage() {
       </nav>
 
       <div className="container py-4">
-        {/* Stats Row */}
+        {/* Stats Row actualizadas dinámicamente */}
         <div className="row g-4 mb-4">
           <div className="col-md-3">
             <div className="card border-0 shadow-sm h-100">
@@ -70,7 +109,7 @@ export default function InventoryPage() {
                   <i className="bi bi-box-seam fs-4"></i>
                 </div>
                 <div>
-                  <h4 className="mb-0 fw-bold">{sampleProducts.length}</h4>
+                  <h4 className="mb-0 fw-bold">{products.length}</h4>
                   <small className="text-muted">Total Products</small>
                 </div>
               </div>
@@ -87,7 +126,7 @@ export default function InventoryPage() {
                 </div>
                 <div>
                   <h4 className="mb-0 fw-bold">
-                    {sampleProducts.filter((p) => p.stock > 10).length}
+                    {products.filter((p) => (p.stock || 0) > 10).length}
                   </h4>
                   <small className="text-muted">In Stock</small>
                 </div>
@@ -105,7 +144,7 @@ export default function InventoryPage() {
                 </div>
                 <div>
                   <h4 className="mb-0 fw-bold">
-                    {sampleProducts.filter((p) => p.stock > 0 && p.stock <= 10).length}
+                    {products.filter((p) => (p.stock || 0) > 0 && (p.stock || 0) <= 10).length}
                   </h4>
                   <small className="text-muted">Low Stock</small>
                 </div>
@@ -123,7 +162,7 @@ export default function InventoryPage() {
                 </div>
                 <div>
                   <h4 className="mb-0 fw-bold">
-                    {sampleProducts.filter((p) => p.stock === 0).length}
+                    {products.filter((p) => (p.stock || 0) === 0).length}
                   </h4>
                   <small className="text-muted">Out of Stock</small>
                 </div>
@@ -137,8 +176,7 @@ export default function InventoryPage() {
           <div className="card-body">
             <div className="row g-3 align-items-center">
               <div className="col-md-6">
-                <div className="search-wrapper">
-                  <i className="bi bi-search"></i>
+                <div className="search-wrapper position-relative">
                   <input
                     type="text"
                     className="form-control"
@@ -212,50 +250,60 @@ export default function InventoryPage() {
                       <td colSpan={6} className="text-center py-5 text-muted">
                         <i className="bi bi-search fs-1 d-block mb-3"></i>
                         <p className="mb-0">No products found</p>
-                        <small>Try adjusting your search or filters</small>
+                        <small>Verify your backend is running or change filters</small>
                       </td>
                     </tr>
                   ) : (
                     paginatedProducts.map((product) => {
-                      const status = getStockStatus(product.stock)
+                      const stockVal = product.stock || 0;
+                      const status = getStockStatus(stockVal);
                       return (
-                        <tr key={product.id}>
+                        <tr key={product.idProduct}>
                           <td>
                             <code className="text-muted">{product.sku}</code>
                           </td>
                           <td>
                             <div className="d-flex align-items-center">
-                              <img
-                                src={product.image}
-                                alt={product.name}
-                                className="rounded me-3"
-                                style={{ width: 48, height: 48, objectFit: 'cover' }}
-                              />
+                              {product.image && (
+                                <img
+                                  src={product.image}
+                                  alt={product.nameProduct}
+                                  className="rounded me-3"
+                                  style={{ width: 48, height: 48, objectFit: 'cover' }}
+                                />
+                              )}
                               <div>
-                                <div className="fw-medium">{product.name}</div>
+                                <div className="fw-medium">{product.nameProduct}</div>
                                 <small className="text-muted text-truncate d-block" style={{ maxWidth: 200 }}>
                                   {product.description}
                                 </small>
                               </div>
                             </div>
                           </td>
+                          {/* 🟢 SOLUCIÓN AL CRASH: Evaluamos de forma segura si la categoría es un objeto relacional */}
                           <td>
-                            <span className="badge bg-light text-dark">{product.category}</span>
+                            <span className="badge bg-light text-dark">
+                              {typeof product.category === 'object' && product.category !== null
+                                ? (product.category as any).nameCategory
+                                : (product.category || 'General')}
+                            </span>
                           </td>
                           <td className="text-center">
                             <span
                               className={`fw-bold ${
-                                product.stock === 0
+                                stockVal === 0
                                   ? 'text-danger'
-                                  : product.stock <= 10
+                                  : stockVal <= 10
                                   ? 'text-warning'
                                   : 'text-success'
                               }`}
                             >
-                              {product.stock}
+                              {stockVal}
                             </span>
                           </td>
-                          <td className="text-end fw-semibold">${product.salePrice.toFixed(2)}</td>
+                          <td className="text-end fw-semibold">
+                            ${(product.sellingValueProduct || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
                           <td className="text-center">
                             <span className={`badge ${status.class}`}>{status.label}</span>
                           </td>

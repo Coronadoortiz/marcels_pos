@@ -1,6 +1,7 @@
 package com.marcels.pos.services.impl;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,13 +26,34 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<Product> getAllProducts() {
-        return productRepository.findAll();
+        // 1. Obtener todos los productos de la base de datos
+        List<Product> products = productRepository.findAll();
+
+        // 2. 🟢 INYECCIÓN DE STOCK EN CALIENTE: 
+        // Recorremos cada producto para buscar su cantidad real en tbl_stocks y asignársela
+        for (Product product : products) {
+            Optional<Stock> associatedStock = stockRepository.findByProduct(product);
+            if (associatedStock.isPresent()) {
+                // Sincroniza con el campo 'productQuantity' que definiste en tu entidad Stock.java
+                product.setStock(associatedStock.get().getProductQuantity()); 
+            } else {
+                product.setStock(0); // Si por algún motivo no tiene registro, lo asegura en 0
+            }
+        }
+
+        return products;
     }
 
     @Override
     public Product getProductById(Long id) {
-        return productRepository.findById(id)
+        Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with ID: " + id));
+        
+        // 🟢 Asegurar que la consulta por ID individual también retorne su stock real calculado
+        stockRepository.findByProduct(product)
+                .ifPresent(stock -> product.setStock(stock.getProductQuantity()));
+
+        return product;
     }
 
     @Override
@@ -47,6 +69,9 @@ public class ProductServiceImpl implements ProductService {
 
         stockRepository.save(initialStock);
 
+        // Forzamos el valor en memoria para que la respuesta inmediata del POST devuelva stock: 0
+        savedProduct.setStock(0);
+
         return savedProduct;
     }
 
@@ -56,10 +81,17 @@ public class ProductServiceImpl implements ProductService {
 
         // Sincronizado con los nombres exactos de tu entidad Product.java
         existingProduct.setNameProduct(productDetails.getNameProduct());
-        existingProduct.setSellingValueProduct(productDetails.getSellingValueProduct()); // <-- Corregido aquí
+        existingProduct.setSellingValueProduct(productDetails.getSellingValueProduct());
         existingProduct.setCategory(productDetails.getCategory()); 
+        existingProduct.setImage(productDetails.getImage()); // Aseguramos guardar la imagen en la edición
 
-        return productRepository.save(existingProduct);
+        Product updatedProduct = productRepository.save(existingProduct);
+        
+        // Mantener el stock calculado asignado al objeto que se va a retornar
+        stockRepository.findByProduct(updatedProduct)
+                .ifPresent(stock -> updatedProduct.setStock(stock.getProductQuantity()));
+
+        return updatedProduct;
     }
 
     @Override
@@ -79,14 +111,27 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public List<Product> getProductsByCategory(Long categoryId) {
         Category category = new Category();
-        category.setIdCategory(categoryId); // Asegúrate de tener setIdCategory en tu entidad Category
+        category.setIdCategory(categoryId); 
         
-        return productRepository.findByCategory(category); // <-- Llamada al repositorio corregida
+        List<Product> products = productRepository.findByCategory(category);
+        
+        // Volvemos a inyectar el stock de forma segura si filtras por categoría
+        for (Product product : products) {
+            stockRepository.findByProduct(product)
+                    .ifPresent(stock -> product.setStock(stock.getProductQuantity()));
+        }
+        
+        return products;
     }
 
     @Override
     public Product getProductByName(String nameProduct) {
-        return productRepository.findByNameProduct(nameProduct)
+        Product product = productRepository.findByNameProduct(nameProduct)
                 .orElseThrow(() -> new RuntimeException("Product not found with name: " + nameProduct));
+        
+        stockRepository.findByProduct(product)
+                .ifPresent(stock -> product.setStock(stock.getProductQuantity()));
+                
+        return product;
     }
 }

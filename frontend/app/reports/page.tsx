@@ -14,13 +14,6 @@ import {
   Legend,
 } from 'chart.js'
 import { Bar, Line, Doughnut } from 'react-chartjs-2'
-import {
-  dailySalesData,
-  weeklySalesData,
-  monthlySalesData,
-  topProductsData,
-  sampleSales,
-} from '@/lib/data'
 
 ChartJS.register(
   CategoryScale,
@@ -58,18 +51,19 @@ const chartOptions = {
 }
 
 export default function ReportsPage() {
-  const dailyTotal = dailySalesData.reduce((sum, d) => sum + d.sales, 0)
-  const weeklyTotal = weeklySalesData.reduce((sum, d) => sum + d.sales, 0)
-  const monthlyTotal = monthlySalesData.reduce((sum, d) => sum + d.sales, 0)
-  const netProfit = monthlyTotal * 0.35
-  const expenses = monthlyTotal * 0.25
+  // Inicialización segura en ceros para evitar errores de compilación tras limpiar data.ts
+  const dailyTotal = 0
+  const weeklyTotal = 0
+  const monthlyTotal = 0
+  const netProfit = 0
+  const expenses = 0
 
   const dailyChartData = {
-    labels: dailySalesData.map((d) => d.day),
+    labels: [],
     datasets: [
       {
         label: 'Sales',
-        data: dailySalesData.map((d) => d.sales),
+        data: [],
         backgroundColor: 'rgba(13, 110, 253, 0.8)',
         borderRadius: 6,
       },
@@ -77,11 +71,11 @@ export default function ReportsPage() {
   }
 
   const weeklyChartData = {
-    labels: weeklySalesData.map((d) => d.week),
+    labels: [],
     datasets: [
       {
         label: 'Sales',
-        data: weeklySalesData.map((d) => d.sales),
+        data: [],
         borderColor: '#198754',
         backgroundColor: 'rgba(25, 135, 84, 0.1)',
         fill: true,
@@ -95,11 +89,11 @@ export default function ReportsPage() {
   }
 
   const monthlyChartData = {
-    labels: monthlySalesData.map((d) => d.month),
+    labels: [],
     datasets: [
       {
         label: 'Sales',
-        data: monthlySalesData.map((d) => d.sales),
+        data: [],
         backgroundColor: [
           'rgba(13, 110, 253, 0.8)',
           'rgba(25, 135, 84, 0.8)',
@@ -114,10 +108,10 @@ export default function ReportsPage() {
   }
 
   const topProductsChartData = {
-    labels: topProductsData.map((d) => d.name),
+    labels: [],
     datasets: [
       {
-        data: topProductsData.map((d) => d.sales),
+        data: [],
         backgroundColor: [
           'rgba(13, 110, 253, 0.9)',
           'rgba(25, 135, 84, 0.9)',
@@ -162,9 +156,7 @@ export default function ReportsPage() {
                   <div>
                     <p className="text-muted small mb-1">Daily Sales</p>
                     <h3 className="fw-bold mb-0">${dailyTotal.toLocaleString()}</h3>
-                    <small className="text-success">
-                      <i className="bi bi-arrow-up me-1"></i>+12.5%
-                    </small>
+                    <small className="text-muted">No data available</small>
                   </div>
                   <div
                     className="rounded-circle d-flex align-items-center justify-content-center"
@@ -183,9 +175,7 @@ export default function ReportsPage() {
                   <div>
                     <p className="text-muted small mb-1">Weekly Sales</p>
                     <h3 className="fw-bold mb-0">${weeklyTotal.toLocaleString()}</h3>
-                    <small className="text-success">
-                      <i className="bi bi-arrow-up me-1"></i>+8.3%
-                    </small>
+                    <small className="text-muted">No data available</small>
                   </div>
                   <div
                     className="rounded-circle d-flex align-items-center justify-content-center"
@@ -204,9 +194,7 @@ export default function ReportsPage() {
                   <div>
                     <p className="text-muted small mb-1">Monthly Sales</p>
                     <h3 className="fw-bold mb-0">${monthlyTotal.toLocaleString()}</h3>
-                    <small className="text-success">
-                      <i className="bi bi-arrow-up me-1"></i>+15.2%
-                    </small>
+                    <small className="text-muted">No data available</small>
                   </div>
                   <div
                     className="rounded-circle d-flex align-items-center justify-content-center"
@@ -225,9 +213,7 @@ export default function ReportsPage() {
                   <div>
                     <p className="text-muted small mb-1">Net Profit</p>
                     <h3 className="fw-bold mb-0 text-success">${netProfit.toLocaleString()}</h3>
-                    <small className="text-success">
-                      <i className="bi bi-arrow-up me-1"></i>+22.1%
-                    </small>
+                    <small className="text-muted">No data available</small>
                   </div>
                   <div
                     className="rounded-circle d-flex align-items-center justify-content-center"
@@ -246,9 +232,7 @@ export default function ReportsPage() {
                   <div>
                     <p className="text-muted small mb-1">Expenses</p>
                     <h3 className="fw-bold mb-0 text-danger">${expenses.toLocaleString()}</h3>
-                    <small className="text-danger">
-                      <i className="bi bi-arrow-down me-1"></i>-5.3%
-                    </small>
+                    <small className="text-muted">No data available</small>
                   </div>
                   <div
                     className="rounded-circle d-flex align-items-center justify-content-center"
@@ -272,8 +256,8 @@ export default function ReportsPage() {
                 </h5>
               </div>
               <div className="card-body">
-                <div className="chart-container">
-                  <Bar data={dailyChartData} options={chartOptions} />
+                <div className="chart-container text-center py-5 text-muted font-monospace">
+                  [ Module Pending Backend Reports Integration ]
                 </div>
               </div>
             </div>
@@ -286,27 +270,7 @@ export default function ReportsPage() {
                 </h5>
               </div>
               <div className="card-body d-flex align-items-center justify-content-center">
-                <div style={{ width: '100%', maxWidth: 280, height: 280 }}>
-                  <Doughnut
-                    data={topProductsChartData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'bottom',
-                          labels: {
-                            boxWidth: 12,
-                            padding: 15,
-                            font: {
-                              size: 11,
-                            },
-                          },
-                        },
-                      },
-                    }}
-                  />
-                </div>
+                <div className="text-muted small font-monospace">No items recorded yet</div>
               </div>
             </div>
           </div>
@@ -322,8 +286,8 @@ export default function ReportsPage() {
                 </h5>
               </div>
               <div className="card-body">
-                <div className="chart-container">
-                  <Line data={weeklyChartData} options={chartOptions} />
+                <div className="chart-container text-center py-5 text-muted font-monospace">
+                  [ Procurement Analytics Pending ]
                 </div>
               </div>
             </div>
@@ -332,73 +296,30 @@ export default function ReportsPage() {
             <div className="card border-0 shadow-sm h-100">
               <div className="card-header bg-white border-0 py-3">
                 <h5 className="mb-0 fw-bold">
-                  <i className="bi bi-bar-chart-fill me-2 text-purple" style={{ color: '#6f42c1' }}></i>
+                  <i className="bi bi-bar-chart-fill me-2" style={{ color: '#6f42c1' }}></i>
                   Sales by Month
                 </h5>
               </div>
               <div className="card-body">
-                <div className="chart-container">
-                  <Bar data={monthlyChartData} options={chartOptions} />
+                <div className="chart-container text-center py-5 text-muted font-monospace">
+                  [ Monthly Volume Charts Pending ]
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Sales History Table */}
+        {/* Sales History Table Empty Placeholder */}
         <div className="card border-0 shadow-sm">
           <div className="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
             <h5 className="mb-0 fw-bold">
               <i className="bi bi-clock-history me-2 text-primary"></i>Sales History
             </h5>
-            <button className="btn btn-outline-primary btn-sm">
-              <i className="bi bi-download me-1"></i>Export
-            </button>
           </div>
-          <div className="card-body p-0">
-            <div className="table-responsive">
-              <table className="table table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th>Invoice</th>
-                    <th>Date</th>
-                    <th>Customer</th>
-                    <th className="text-end">Total</th>
-                    <th className="text-end">Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sampleSales.map((sale) => (
-                    <tr key={sale.id}>
-                      <td>
-                        <span className="text-primary fw-medium">{sale.invoiceNumber}</span>
-                      </td>
-                      <td>{sale.date}</td>
-                      <td>{sale.customer}</td>
-                      <td className="text-end fw-semibold">${sale.total.toFixed(2)}</td>
-                      <td className="text-end">
-                        <span className="text-success fw-semibold">
-                          +${sale.profit.toFixed(2)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="table-light">
-                    <td colSpan={3} className="fw-bold">
-                      Total
-                    </td>
-                    <td className="text-end fw-bold">
-                      ${sampleSales.reduce((sum, s) => sum + s.total, 0).toFixed(2)}
-                    </td>
-                    <td className="text-end fw-bold text-success">
-                      +${sampleSales.reduce((sum, s) => sum + s.profit, 0).toFixed(2)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+          <div className="card-body p-5 text-center text-muted">
+            <i className="bi bi-graph-down fs-2 mb-2 d-block text-secondary"></i>
+            <p className="mb-0 fw-medium">History Log Empty</p>
+            <small>Live analytical logging will resume once reporting service goes online.</small>
           </div>
         </div>
       </div>
