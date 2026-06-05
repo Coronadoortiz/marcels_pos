@@ -25,15 +25,16 @@ public class SaleController {
         this.saleService = saleService;
     }
 
-    @GetMapping
-    public List<Sale> getAll() {
+    // 🟢 RUTA PARA REPORTES: Obtiene TODO el historial
+    @GetMapping("/all") 
+    public List<Sale> getAllSales() {
         return saleService.getAllSales();
     }
 
+    // 🟢 RUTA PARA REGISTRO
     @PostMapping
     @io.swagger.v3.oas.annotations.Operation(summary = "Registrar una venta y descontar stock automáticamente")
     public ResponseEntity<Sale> create(@RequestBody Sale sale) {
-        // Al pasarle el JSON, Spring mapeará automáticamente la lista interna 'saleDetails'
         return new ResponseEntity<>(saleService.saveSale(sale), HttpStatus.CREATED);
     }
 }

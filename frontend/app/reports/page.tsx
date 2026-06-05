@@ -1,94 +1,158 @@
 'use client'
 
-import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, 
-  PointElement, ArcElement, Title, Tooltip, Legend,
-} from 'chart.js'
-import { Bar, Line, Doughnut } from 'react-chartjs-2'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend)
+import Link from 'next/link'
 
 export default function ReportsPage() {
-  const [report, setReport] = useState({
-    totalSales: 0,
-    totalPurchases: 0,
-    netProfit: 0,
-    totalSalesCount: 0,
-    totalPurchasesCount: 0
-  })
+  const [sales, setSales] = useState<any[]>([])
+  const [report, setReport] = useState({ totalSales: 0, totalPurchases: 0, netProfit: 0, totalSalesCount: 0, totalPurchasesCount: 0 })
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]) // 🟢 NUEVO: Estado para los métodos de pago de la BD
+  const [filterDate, setFilterDate] = useState('')
+  const [minPrice, setMinPrice] = useState(0)
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('All') // Filtrará por ID por seguridad
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8080/api/finance/report')
-      .then(res => res.json())
-      .then(data => {
-        setReport(data)
-        setLoading(false)
-      })
-      .catch(err => {
-        console.error("Error fetching financial data:", err)
-        setLoading(false)
-      })
+    // Cargamos Ventas, Reporte Global y opcionalmente Métodos de Pago
+    Promise.all([
+      fetch('http://127.0.0.1:8080/api/sales/all').then(res => res.json()),
+      fetch('http://127.0.0.1:8080/api/finance/report').then(res => res.json())
+    ]).then(([salesData, reportData]) => {
+      setSales(salesData)
+      setReport(reportData)
+      
+      // 🟢 EXTRAE MÉTODOS DE PAGO ÚNICOS: Para no crear otro endpoint en Java, 
+      // mapeamos los métodos de pago que ya vienen dentro de las mismas ventas. ¡Ultra eficiente!
+      const uniqueMethods: any[] = [];
+      const map = new Map();
+      salesData.forEach((sale: any) => {
+        if (sale.paymentMethod && !map.has(sale.paymentMethod.idPaymentMethod)) {
+          map.set(sale.paymentMethod.idPaymentMethod, true);
+          uniqueMethods.push(sale.paymentMethod);
+        }
+      });
+      setPaymentMethods(uniqueMethods);
+      
+      setLoading(false)
+    }).catch(err => {
+      console.error("Error al cargar reportes:", err)
+      setLoading(false)
+    })
   }, [])
 
-  if (loading) return <div className="min-vh-100 d-flex align-items-center justify-content-center">Loading Financial Reports...</div>
+  // FUNCIÓN EXTRACTORA UNIVERSAL DE FECHAS (LocalDateTime de Java)
+  const parseInvoiceDate = (dateRaw: any): { display: string; iso: string } => {
+    if (!dateRaw) return { display: 'N/A', iso: '' };
+    try {
+      let d: Date;
+      if (typeof dateRaw === 'object' && dateRaw.year) {
+        const month = dateRaw.monthValue ? dateRaw.monthValue - 1 : 0; 
+        d = new Date(dateRaw.year, month, dateRaw.dayOfMonth || 1);
+      } else {
+        d = new Date(dateRaw);
+      }
+      if (isNaN(d.getTime())) return { display: 'N/A', iso: '' };
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return {
+        display: `${day}/${month}/${year}`,
+        iso: `${year}-${month}-${day}`
+      };
+    } catch {
+      return { display: 'N/A', iso: '' };
+    }
+  };
 
-  // Configuración de Gráficos con datos dinámicos del DTO
-  const profitChartData = {
-    labels: ['Sales', 'Purchases'],
-    datasets: [{
-      data: [report.totalSales, report.totalPurchases],
-      backgroundColor: ['#0d6efd', '#dc3545'],
-      borderWidth: 0,
-    }]
-  }
+  // Lógica de filtrado reactiva
+  const filteredSales = sales.filter(s => {
+    const total = s.saleDetails?.reduce((sum: number, d: any) => sum + (d.amountProducts * (d.product?.sellingValueProduct || 0)), 0) || 0
+    const dateMeta = parseInvoiceDate(s.dateSale);
+    
+    const matchDate = filterDate ? dateMeta.iso === filterDate : true
+    const matchPrice = total >= minPrice
+    
+    // 🟢 FILTRADO DINÁMICO: Compara por el id del método seleccionado
+    const matchPayment = selectedPaymentMethodId === 'All' 
+      ? true 
+      : s.paymentMethod?.idPaymentMethod === Number(selectedPaymentMethodId);
+    
+    return matchDate && matchPrice && matchPayment
+  })
+
+  if (loading) return <div className="p-5 text-center">Cargando reportes...</div>
 
   return (
-    <div className="min-vh-100" style={{ backgroundColor: '#f8f9fa' }}>
-      <nav className="navbar navbar-light bg-white border-bottom shadow-sm">
-        <div className="container-fluid px-4">
-          <Link href="/" className="btn btn-light me-3"><i className="bi bi-arrow-left"></i></Link>
-          <span className="navbar-brand fw-bold"><i className="bi bi-graph-up-arrow text-danger me-2"></i>Finance Analytics</span>
-        </div>
-      </nav>
+    <div className="min-vh-100 bg-light p-4">
+      <div className="d-flex justify-content-between mb-4">
+        <Link href="/" className="btn btn-outline-secondary"><i className="bi bi-arrow-left"></i> Volver</Link>
+        <h2 className="fw-bold">Reportes y Filtros</h2>
+      </div>
 
-      <div className="container py-4">
-        {/* KPI Cards Reales */}
-        <div className="row g-4 mb-4">
-          <div className="col-md-3"><div className="card border-0 shadow-sm p-4"><p className="text-muted small">Total Revenue</p><h3 className="fw-bold text-primary">${report.totalSales.toLocaleString()}</h3></div></div>
-          <div className="col-md-3"><div className="card border-0 shadow-sm p-4"><p className="text-muted small">Total Expenses</p><h3 className="fw-bold text-danger">${report.totalPurchases.toLocaleString()}</h3></div></div>
-          <div className="col-md-3"><div className="card border-0 shadow-sm p-4"><p className="text-muted small">Net Profit</p><h3 className="fw-bold text-success">${report.netProfit.toLocaleString()}</h3></div></div>
-          <div className="col-md-3"><div className="card border-0 shadow-sm p-4"><p className="text-muted small">Total Operations</p><h3 className="fw-bold">{report.totalSalesCount + report.totalPurchasesCount}</h3></div></div>
-        </div>
+      {/* KPI Cards */}
+      <div className="row g-3 mb-4">
+        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Ingresos Totales</p><h3>${report.totalSales.toLocaleString()}</h3></div></div>
+        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Egresos (Compras)</p><h3>${report.totalPurchases.toLocaleString()}</h3></div></div>
+        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Utilidad Neta</p><h3 className="text-success">${report.netProfit.toLocaleString()}</h3></div></div>
+      </div>
 
-        {/* Charts Section */}
-        <div className="row g-4">
-          <div className="col-lg-8">
-            <div className="card border-0 shadow-sm p-4">
-              <h5 className="fw-bold mb-4">Financial Overview</h5>
-              <div style={{ height: '300px' }}>
-                <Bar data={{
-                  labels: ['Sales', 'Purchases', 'Net Profit'],
-                  datasets: [{
-                    label: 'Amount ($)',
-                    data: [report.totalSales, report.totalPurchases, report.netProfit],
-                    backgroundColor: ['#0d6efd', '#dc3545', '#198754']
-                  }]
-                }} options={{ responsive: true, maintainAspectRatio: false }} />
-              </div>
-            </div>
+      {/* Panel de Filtros */}
+      <div className="card shadow-sm border-0 p-3 mb-4">
+        <div className="row g-3">
+          <div className="col-md-3">
+            <label className="small fw-bold">Fecha exacta</label>
+            <input type="date" className="form-control" onChange={e => setFilterDate(e.target.value)} />
           </div>
-          <div className="col-lg-4">
-            <div className="card border-0 shadow-sm p-4">
-              <h5 className="fw-bold mb-4">Profit Distribution</h5>
-              <div style={{ height: '300px' }}>
-                <Doughnut data={profitChartData} options={{ responsive: true, maintainAspectRatio: false }} />
-              </div>
-            </div>
+          <div className="col-md-3">
+            <label className="small fw-bold">Precio Mínimo ($)</label>
+            <input type="number" className="form-control" onChange={e => setMinPrice(Number(e.target.value))} />
+          </div>
+          <div className="col-md-3">
+            <label className="small fw-bold">Método de Pago</label>
+            {/* 🟢 DROPDOWNLIST DINÁMICO COMPLETAMENTE CORREGIDO */}
+            <select 
+              className="form-select" 
+              value={selectedPaymentMethodId} 
+              onChange={e => setSelectedPaymentMethodId(e.target.value)}
+            >
+              <option value="All">Todos los métodos</option>
+              {paymentMethods.map((method: any) => (
+                <option key={method.idPaymentMethod} value={method.idPaymentMethod}>
+                  {method.namePaymentMethod}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
+      </div>
+
+      {/* Tabla de Historial Completo */}
+      <div className="card shadow-sm border-0">
+        <table className="table table-hover mb-0">
+          <thead className="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Fecha de Venta</th>
+              <th>Método</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredSales.map(s => {
+              const dateMeta = parseInvoiceDate(s.dateSale);
+              return (
+                <tr key={s.idSale}>
+                  <td>#{s.idSale}</td>
+                  <td className="text-dark fw-medium">{dateMeta.display}</td>
+                  <td>{s.paymentMethod?.namePaymentMethod || 'N/A'}</td>
+                  <td className="fw-bold text-primary">
+                    ${s.saleDetails?.reduce((sum: number, d: any) => sum + (d.amountProducts * (d.product?.sellingValueProduct || 0)), 0).toFixed(2)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )

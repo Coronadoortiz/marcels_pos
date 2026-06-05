@@ -1,5 +1,7 @@
 package com.marcels.pos.controllers;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping; // Importación corregida
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,7 +22,15 @@ public class FinanceController {
     }
 
     @GetMapping("/report")
-    public FinanceReportDTO getReport() {
-        return financeService.getGlobalFinancialReport();
+    public ResponseEntity<?> getReport() {
+        try {
+            FinanceReportDTO report = financeService.getGlobalFinancialReport();
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            // Esto imprimirá el error real en tu consola de Java
+            e.printStackTrace(); 
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body("Error calculando finanzas: " + e.getMessage());
+        }
     }
 }

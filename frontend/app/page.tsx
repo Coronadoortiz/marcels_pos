@@ -57,7 +57,7 @@ export default function Dashboard() {
       try {
         const [resProducts, resSales, resPurchases] = await Promise.all([
           fetch('http://127.0.0.1:8080/api/products'),
-          fetch('http://127.0.0.1:8080/api/sales'),
+          fetch('http://127.0.0.1:8080/api/sales/all'),
           fetch('http://127.0.0.1:8080/api/purchases') // 🟢 Trae las compras guardadas en Neon
         ])
 
@@ -120,7 +120,7 @@ export default function Dashboard() {
         <div className="container">
           <Link href="/" className="navbar-brand d-flex align-items-center">
             <i className="bi bi-box-seam text-primary me-2 fs-3"></i>
-            <span className="fw-bold">InventoryPro</span>
+            <span className="fw-bold">Marcel's Tecnologia celular y fotografia</span>
           </Link>
           <div className="d-flex align-items-center">
             <span className="badge bg-dark px-3 py-2 fs-6 me-3">
@@ -133,8 +133,8 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="container py-5">
         <div className="text-center mb-5">
-          <h1 className="display-5 fw-bold text-dark mb-2">Welcome to InventoryPro</h1>
-          <p className="lead text-muted">Integrated ERP Panel tracking your live relational database infrastructure</p>
+          <h1 className="display-5 fw-bold text-dark mb-2">Marcel's</h1>
+          <p className="lead text-muted">Tecnologia celular y fotografia</p>
         </div>
 
         {/* 🟢 TARJETAS DE INDICADORES (KPIs RECIÉN RESTAURADOS) */}
@@ -307,7 +307,7 @@ export default function Dashboard() {
 
       <footer className="bg-white border-top py-4 mt-auto">
         <div className="container text-center text-muted">
-          <p className="mb-0">InventoryPro ERP System - UdeA Techniques Laboratory Integration</p>
+          <p className="mb-0">Marcels Tecnologia celular y fotografía</p>
         </div>
       </footer>
     </div>
