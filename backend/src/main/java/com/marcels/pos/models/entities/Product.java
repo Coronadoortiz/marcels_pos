@@ -1,7 +1,15 @@
 package com.marcels.pos.models.entities; // Revisa que sea tu paquete real
 
-import jakarta.persistence.*;
-import lombok.Data; // Si usas Lombok para getters y setters
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity; // Si usas Lombok para getters y setters
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+import lombok.Data;
 
 @Entity
 @Table(name = "tbl_products")
@@ -13,26 +21,19 @@ public class Product {
     @Column(name = "id_product")
     private Long idProduct;
 
-    @Column(name = "sku")
-    private String sku;
-
-    @Column(name = "name_product")
+    @Column(name = "name_product", nullable = false)
     private String nameProduct;
 
-    @Column(name = "selling_value_product")
+    @Column(name = "selling_value_product", nullable = false)
     private Double sellingValueProduct;
-
-    @Column(name = "purchase_price")
-    private Double purchasePrice;
-
-    @Column(name = "image")
-    private String image;
 
     @ManyToOne
     @JoinColumn(name = "id_category")
     private Category category;
 
-    // 🟢 LA SOLUCIÓN: Atributo volátil para Next.js
+    // 🟢 EL CAMPO VOLÁTIL REQUERIDO POR NEXT.JS:
+    // Al usar @Transient, Hibernate ignora por completo esta variable al generar los 
+    // SQL automáticos, pero Jackson la serializa como un campo JSON limpio en la API.
     @Transient 
-    private Integer stock = 0; // Inicializa por defecto en 0
+    private Integer stock = 0;
 }

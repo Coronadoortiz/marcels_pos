@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { type Product, type CartItem } from '@/lib/data'
+import { type Product, type CartItem } from '@/lib/data' 
 
 export default function SalesPage() {
   const [products, setProducts] = useState<Product[]>([])
-  const [cart, setCart] = useState<CartItem[]>([]) // Usa exactamente tu estructura
+  const [cart, setCart] = useState<CartItem[]>([]) 
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
@@ -15,15 +15,13 @@ export default function SalesPage() {
     invoiceNumber: string
     date: string
     items: CartItem[]
-    subtotal: number
-    tax: number
     total: number
   } | null>(null)
 
-  // 1. Sincronizar catálogo real desde tu backend de Spring Boot
+  // 1. Sincronizar catálogo usando la IP fija para eludir problemas DNS de red local
   const loadLiveCatalog = () => {
     setLoading(true)
-    fetch('http://localhost:8080/api/products')
+    fetch('http://127.0.0.1:8080/api/products')
       .then((res) => res.json())
       .then((data) => {
         setProducts(data)
@@ -39,14 +37,12 @@ export default function SalesPage() {
     loadLiveCatalog()
   }, [])
 
-  // Filtrado reactivo en pantalla usando las columnas reales de Neon
   const filteredProducts = products.filter(
     (p) =>
       p.nameProduct?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+      p.idProduct?.toString() === searchTerm.trim()
   )
 
-  // Mapeo adaptado: Copia de Product a las propiedades estrictas de tu CartItem
   const addToCart = (product: Product) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.idProduct === product.idProduct)
@@ -55,12 +51,11 @@ export default function SalesPage() {
           item.idProduct === product.idProduct ? { ...item, quantity: item.quantity + 1 } : item
         )
       }
-      // Creamos el objeto respetando de forma estricta tu interfaz CartItem
       const newItem: CartItem = {
         idProduct: product.idProduct || 0,
-        nameProduct: product.nameProduct,
-        price: product.sellingValueProduct, // Mapeamos sellingValueProduct de la BD a tu .price de la vista
-        quantity: 1                         // Mapeamos a tu propiedad .quantity
+        nameProduct: product.nameProduct || '',
+        price: product.sellingValueProduct || 0, 
+        quantity: 1                         
       }
       return [...prev, newItem]
     })
@@ -78,25 +73,22 @@ export default function SalesPage() {
     setCart((prev) => prev.filter((item) => item.idProduct !== id))
   }
 
-  // Cálculos dinámicos utilizando las propiedades exactas de tu interfaz (.price y .quantity)
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const tax = subtotal * 0.19
-  const total = subtotal + tax
+  // 🟢 Punto 1: Cálculos lineales simplificados. El subtotal es el total directo sin cálculos de IVA
+  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
-  const generateInvoice = () => {
+  // 🟢 Punto 3: Generador de datos adaptado para recibir el ID secuencial real retornado por Neon
+  const generateInvoice = (realSaleId: number) => {
     const invoice = {
-      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+      invoiceNumber: `INV-${realSaleId}`, // Cambiado a ID estricto del autoincremental de la DB
       date: new Date().toLocaleDateString(),
       items: cart,
-      subtotal,
-      tax,
       total,
     }
     setInvoiceData(invoice)
     setShowInvoiceModal(true)
   }
 
-  // 2. ENVIAR TRANSACCIÓN COBRO DIRECTO AL BACKEND (POST /api/sales)
+  // 2. DESPACHAR TRANSACCIÓN DIRECTO AL BACKEND (POST /api/sales)
   const chargeCustomer = async () => {
     if (cart.length === 0) {
       alert('Please add products to the cart first')
@@ -105,44 +97,44 @@ export default function SalesPage() {
 
     const saleRequest = {
       paymentMethod: {
-        idPaymentMethod: 1 // Efectivo/Cash por defecto
+        idPaymentMethod: 1 // Efectivo por defecto
       },
       saleDetails: cart.map(item => ({
-        amountProducts: item.quantity, // Extraído de tu variable .quantity
+        amountProducts: item.quantity, 
         product: {
-          idProduct: item.idProduct     // Extraído de tu variable .idProduct
+          idProduct: item.idProduct     
         }
       }))
     }
 
     try {
-      const response = await fetch('http://localhost:8080/api/sales', {
+      const response = await fetch('http://127.0.0.1:8080/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(saleRequest)
       })
 
       if (response.ok) {
-        generateInvoice() // Dispara la factura en pantalla si Neon guardó el registro con éxito
+        const savedSaleEntity = await response.json()
+        
+        // 🟢 Punto 3: Extraemos el idSale (o id_sale) real devuelto por la base de datos Neon
+        const realId = savedSaleEntity.idSale || savedSaleEntity.id_sale || Date.now();
+        generateInvoice(realId) 
       } else {
         const errLog = await response.json();
-        alert(`❌ Transaction Blocked: Insufficient stock level.\nDetails: ${errLog.message || 'Check stock levels.'}`)
+        alert(`❌ Transaction Blocked: Insufficient stock level.\nDetails: ${errLog.message || 'Check stock availability.'}`)
       }
     } catch (error) {
-      console.error("Fallo crítico de red:", error)
+      console.error("Fallo crítico de comunicación API:", error)
       alert("Error: Server offline or CORS block.")
     }
-  }
-
-  const downloadPDF = () => {
-    alert('PDF download functionality would be implemented here')
   }
 
   const clearCart = () => {
     setCart([])
     setShowInvoiceModal(false)
     setInvoiceData(null)
-    loadLiveCatalog() // Recarga catálogo para refrescar visualmente el stock remanente
+    loadLiveCatalog() 
   }
 
   if (loading) {
@@ -191,7 +183,7 @@ export default function SalesPage() {
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Search live inventory..."
+                    placeholder="Search by name or ID..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -219,7 +211,7 @@ export default function SalesPage() {
                           <p className="card-text mb-0">
                             <span className="fw-bold text-primary">${(product.sellingValueProduct || 0).toFixed(2)}</span>
                           </p>
-                          <small className="text-muted d-block">Stock real: {product.stock || 0}</small>
+                          <small className="text-muted d-block">Stock: {product.stock || 0}</small>
                         </div>
                       </div>
                     </div>
@@ -229,7 +221,7 @@ export default function SalesPage() {
             </div>
           </div>
 
-          {/* Center Section - Sales Table (PROPIEDADES SINCRONIZADAS CON TU CARTITEM) */}
+          {/* Center Section - Sales Table */}
           <div className="col-lg-5">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-header bg-white border-0 py-3">
@@ -268,19 +260,17 @@ export default function SalesPage() {
                                 </div>
                               </div>
                             </td>
-                            {/* Leemos de tu variable item.price */}
                             <td className="text-center">${item.price.toFixed(2)}</td>
                             <td className="text-center">
                               <input
                                 type="number"
                                 className="form-control form-control-sm text-center"
-                                value={item.quantity} // Leemos de tu variable item.quantity
+                                value={item.quantity} 
                                 min={1}
                                 onChange={(e) => updateQuantity(item.idProduct, parseInt(e.target.value) || 0)}
                                 style={{ width: 70 }}
                               />
                             </td>
-                            {/* Multiplicamos usando tus variables estrictas */}
                             <td className="text-end fw-semibold">
                               ${(item.price * item.quantity).toFixed(2)}
                             </td>
@@ -316,15 +306,7 @@ export default function SalesPage() {
                   <span className="fw-medium">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
                 </div>
                 <hr />
-                <div className="d-flex justify-content-between mb-2">
-                  <span className="text-muted">Subtotal:</span>
-                  <span className="fw-medium">${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="d-flex justify-content-between mb-2">
-                  <span className="text-muted">Tax (IVA 19%):</span>
-                  <span className="fw-medium">${tax.toFixed(2)}</span>
-                </div>
-                <hr />
+                {/* 🟢 Punto 1: Se extrajo el renglón del subtotal e IVA, dejando únicamente el Total neto de la compra */}
                 <div className="d-flex justify-content-between mb-4">
                   <span className="fs-5 fw-bold">Total:</span>
                   <span className="fs-5 fw-bold text-primary">${total.toFixed(2)}</span>
@@ -375,7 +357,8 @@ export default function SalesPage() {
                     <p className="text-muted mb-0">Live Neon Connection Verified</p>
                   </div>
                   <div className="text-end">
-                    <h5 className="fw-bold mb-1">{invoiceData.invoiceNumber}</h5>
+                    {/* 🟢 Punto 3: Aquí se dibuja el INV-{id_real} que inyecta la base de datos */}
+                    <h5 className="fw-bold mb-1 text-success">{invoiceData.invoiceNumber}</h5>
                     <p className="text-muted mb-0">Date: {invoiceData.date}</p>
                   </div>
                 </div>
@@ -401,14 +384,7 @@ export default function SalesPage() {
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr>
-                        <td colSpan={3} className="text-end fw-medium">Subtotal:</td>
-                        <td className="text-end">${invoiceData.subtotal.toFixed(2)}</td>
-                      </tr>
-                      <tr>
-                        <td colSpan={3} className="text-end fw-medium">Tax (IVA 19%):</td>
-                        <td className="text-end">${invoiceData.tax.toFixed(2)}</td>
-                      </tr>
+                      {/* 🟢 Punto 1: Limpiado el desglose de IVA de la sección inferior de la factura */}
                       <tr className="table-primary">
                         <td colSpan={3} className="text-end fw-bold fs-5">Total Paid:</td>
                         <td className="text-end fw-bold fs-5">${invoiceData.total.toFixed(2)}</td>
@@ -421,9 +397,7 @@ export default function SalesPage() {
                 <button className="btn btn-outline-secondary" onClick={() => setShowInvoiceModal(false)}>
                   Close view
                 </button>
-                <button className="btn btn-primary" onClick={downloadPDF}>
-                  <i className="bi bi-download me-2"></i>Download PDF
-                </button>
+                {/* 🟢 Punto 2: Se eliminó el botón de descarga PDF por completo */}
                 <button className="btn btn-success" onClick={clearCart}>
                   <i className="bi bi-check-circle me-2"></i>Complete Sale
                 </button>

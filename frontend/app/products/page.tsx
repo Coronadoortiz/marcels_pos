@@ -11,7 +11,7 @@ export default function ProductsPage() {
   
   // Modales principales
   const [showModal, setShowModal] = useState(false)
-  const [showCategoryModal, setShowCategoryModal] = useState(false) // 🟢 NUEVO: Estado para sub-modal de categorías
+  const [showCategoryModal, setShowCategoryModal] = useState(false) 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null)
 
@@ -20,17 +20,16 @@ export default function ProductsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
-  // Formularios
+  // Formularios simplificados a tu nueva estructura de Entity Java
   const [formData, setFormData] = useState({
     nameProduct: '',
     idCategorySelected: '', 
     sellingValueProduct: 0,
-    image: '',
   })
 
-  const [newCategoryName, setNewCategoryName] = useState('') // 🟢 NUEVO: Estado para el input de nueva categoría
+  const [newCategoryName, setNewCategoryName] = useState('') 
 
-  // Cargar de forma unificada productos y categorías desde Spring Boot con IP numérica fija
+  // Cargar de forma unificada productos y categorías defendiendo la estructura de Arreglos
   const loadInitialData = async () => {
     setLoading(true)
     try {
@@ -42,11 +41,14 @@ export default function ProductsPage() {
       const productsData = await resProducts.json()
       const categoriesData = await resCategories.json()
 
-      setProducts(productsData)
-      setLiveCategories(categoriesData)
+      // 🟢 CONTROL CRÍTICO: Asegura que el estado siempre sea una lista [] para evitar fallas en el .filter()
+      setProducts(Array.isArray(productsData) ? productsData : [])
+      setLiveCategories(Array.isArray(categoriesData) ? categoriesData : [])
       setLoading(false)
     } catch (err) {
       console.error("Error al sincronizar catálogo y categorías con Neon:", err)
+      setProducts([])
+      setLiveCategories([])
       setLoading(false)
     }
   }
@@ -61,7 +63,6 @@ export default function ProductsPage() {
       nameProduct: '',
       idCategorySelected: liveCategories[0]?.idCategory?.toString() || '', 
       sellingValueProduct: 0,
-      image: '',
     })
     setShowModal(true)
   }
@@ -77,12 +78,11 @@ export default function ProductsPage() {
       nameProduct: product.nameProduct || '',
       idCategorySelected: currentCategoryId,
       sellingValueProduct: product.sellingValueProduct || 0,
-      image: product.image || '',
     })
     setShowModal(true)
   }
 
-  // 🟢 NUEVO: Función para crear categorías directo en caliente (POST /api/categories)
+  // Crear categorías directo en caliente (POST /api/categories)
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
       alert('Category name cannot be empty')
@@ -100,10 +100,9 @@ export default function ProductsPage() {
         const savedCategory = await response.json()
         alert('🎉 Category created successfully!')
         
-        // Refrescar datos y auto-seleccionar la categoría recién creada en el formulario del producto
         const resCategories = await fetch('http://127.0.0.1:8080/api/categories')
         const categoriesData = await resCategories.json()
-        setLiveCategories(categoriesData)
+        setLiveCategories(Array.isArray(categoriesData) ? categoriesData : [])
         
         setFormData(prev => ({ ...prev, idCategorySelected: savedCategory.idCategory?.toString() }))
         setNewCategoryName('')
@@ -122,15 +121,13 @@ export default function ProductsPage() {
       return
     }
 
-    // Payload limpio y adaptado: Se eliminaron las variables de stock e historial de precios de compra manuales
+    // 🟢 PAYLOAD LIMPIO: Sincronizado exactamente con las propiedades que conservó tu backend
     const payload = {
-      sku: editingProduct?.sku || `SKU-${Date.now().toString().slice(-6)}`,
       nameProduct: formData.nameProduct,
       category: {
         idCategory: parseInt(formData.idCategorySelected) 
       },
-      sellingValueProduct: formData.sellingValueProduct,
-      image: formData.image || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=200&fit=crop'
+      sellingValueProduct: formData.sellingValueProduct
     }
 
     try {
@@ -177,8 +174,11 @@ export default function ProductsPage() {
     }
   }
 
-  // Filtrado por Nombre o ID numérico de producto
-  const filteredProducts = products.filter((product) => {
+  // 🟢 FILTRADO BLINDADO: Evaluación segura para prevenir caídas de tipo de dato
+  const safeProductsList = Array.isArray(products) ? products : [];
+
+  const filteredProducts = safeProductsList.filter((product) => {
+    if (!product) return false;
     const matchesSearch =
       (product.nameProduct?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
       (product.idProduct?.toString() === searchTerm.trim())
@@ -236,7 +236,7 @@ export default function ProductsPage() {
           </button>
         </div>
 
-        {/* 🟢 Punto 1: Texto ajustado "Search by name or ID" */}
+        {/* Input de Búsqueda */}
         <div className="card border-0 shadow-sm mb-4">
           <div className="card-body">
             <div className="row g-3 align-items-center">
@@ -269,68 +269,61 @@ export default function ProductsPage() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table con estructura corregida sin sku, image ni purchase cost */}
         <div className="card border-0 shadow-sm">
           <div className="card-body p-0">
             <div className="table-responsive">
               <table className="table table-hover mb-0">
                 <thead>
                   <tr>
-                    <th style={{ width: 80 }}>ID</th>
-                    <th style={{ width: 120 }}>SKU</th>
-                    <th>Name</th>
+                    <th style={{ width: 100 }}>Product ID</th>
+                    <th>Product Name</th>
                     <th>Category</th>
-                    <th className="text-end">Purchase Price</th>
-                    <th className="text-end">Sale Price</th>
-                    <th className="text-center">Stock</th>
+                    <th className="text-end">Sale Retail Price</th>
+                    <th className="text-center">Current Stock</th>
                     <th className="text-center" style={{ width: 150 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedProducts.map((product) => (
-                    <tr key={product.idProduct}>
-                      <td><span className="text-muted fw-bold">#{product.idProduct}</span></td>
-                      <td><code className="text-muted">{product.sku}</code></td>
-                      <td>
-                        <div className="d-flex align-items-center">
-                          {product.image && (
-                            <img src={product.image} alt={product.nameProduct} className="rounded me-3" style={{ width: 44, height: 44, objectFit: 'cover' }} />
-                          )}
-                          <div className="fw-medium">{product.nameProduct}</div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="badge bg-light text-dark">
-                          {typeof product.category === 'object' && product.category !== null
-                            ? (product.category as any).nameCategory
-                            : (product.category || 'General')}
-                        </span>
-                      </td>
-                      {/* Mostrar histórico del costo base cargado desde Java */}
-                      <td className="text-end text-muted">
-                        ${(product.purchasePrice || 0).toFixed(2)}
-                      </td>
-                      <td className="text-end fw-semibold text-primary">
-                        ${(product.sellingValueProduct || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="text-center">
-                        <span className={`fw-bold ${
-                          ((typeof product.stock === 'object' && product.stock !== null ? (product.stock as any).amountProducts : product.stock) || 0) === 0 
-                            ? 'text-danger' 
-                            : 'text-success'
-                        }`}>
-                          {/* 🟢 Busca el stock ya sea si viene como objeto relacional o como número directo del backend */}
-                          {typeof product.stock === 'object' && product.stock !== null
-                            ? ((product.stock as any).amountProducts || 0)
-                            : (product.stock || 0)}
-                        </span>
-                      </td>
-                      <td className="text-center">
-                        <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openEditModal(product)}><i className="bi bi-pencil"></i></button>
-                        <button className="btn btn-sm btn-outline-danger" onClick={() => product.idProduct && setShowDeleteConfirm(product.idProduct)}><i className="bi bi-trash"></i></button>
-                      </td>
+                  {paginatedProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-5 text-muted">No products found in the catalog database.</td>
                     </tr>
-                  ))}
+                  ) : (
+                    paginatedProducts.map((product) => (
+                      <tr key={product.idProduct}>
+                        <td><span className="text-muted fw-bold">#{product.idProduct}</span></td>
+                        <td>
+                          <div className="fw-medium text-dark">{product.nameProduct}</div>
+                        </td>
+                        <td>
+                          <span className="badge bg-light text-dark">
+                            {typeof product.category === 'object' && product.category !== null
+                              ? (product.category as any).nameCategory
+                              : (product.category || 'General')}
+                          </span>
+                        </td>
+                        <td className="text-end fw-semibold text-primary">
+                          ${(product.sellingValueProduct || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="text-center">
+                          <span className={`fw-bold ${
+                            ((typeof product.stock === 'object' && product.stock !== null ? (product.stock as any).amountProducts : product.stock) || 0) === 0 
+                              ? 'text-danger' 
+                              : 'text-success'
+                          }`}>
+                            {typeof product.stock === 'object' && product.stock !== null
+                              ? ((product.stock as any).amountProducts || 0)
+                              : (product.stock || 0)}
+                          </span>
+                        </td>
+                        <td className="text-center">
+                          <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openEditModal(product)}><i className="bi bi-pencil"></i></button>
+                          <button className="btn btn-sm btn-outline-danger" onClick={() => product.idProduct && setShowDeleteConfirm(product.idProduct)}><i className="bi bi-trash"></i></button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -353,7 +346,7 @@ export default function ProductsPage() {
                       </button>
                     </li>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <li key={page} className={`page-item ${currentPage === page ? 'active' : ''}`}>
+                      <li className={`page-item ${currentPage === page ? 'active' : ''}`}>
                         <button className="page-link" onClick={() => setCurrentPage(page)}>{page}</button>
                       </li>
                     ))}
@@ -373,86 +366,74 @@ export default function ProductsPage() {
       {/* Modal Principal Creación/Edición */}
       {showModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div className="modal-content">
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow">
               <div className="modal-header">
-                <h5 className="modal-title fw-bold">{editingProduct ? 'Edit Product' : 'Create New Product'}</h5>
+                <h5 className="modal-title fw-bold">{editingProduct ? 'Update Product Catalog' : 'Create New Catalog Item'}</h5>
                 <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
               </div>
               <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label fw-medium">Product Name *</label>
+                  <input type="text" className="form-control" value={formData.nameProduct} onChange={(e) => setFormData({ ...formData, nameProduct: e.target.value })} placeholder="e.g., Gaseosa Coca Cola 350ml" />
+                </div>
+                
+                <div className="mb-3">
+                  <label className="form-label fw-medium">Category *</label>
+                  <div className="input-group">
+                    <select
+                      className="form-select"
+                      value={formData.idCategorySelected}
+                      onChange={(e) => setFormData({ ...formData, idCategorySelected: e.target.value })}
+                    >
+                      <option value="">-- Seleccione una categoría --</option>
+                      {liveCategories.map((cat) => (
+                        <option key={cat.idCategory} value={cat.idCategory}>
+                          {cat.nameCategory}
+                        </option>
+                      ))}
+                    </select>
+                    <button className="btn btn-outline-success" type="button" onClick={() => setShowCategoryModal(true)}>
+                      <i className="bi bi-plus-lg me-1"></i>New Category
+                    </button>
+                  </div>
+                </div>
+
                 <div className="row">
-                  <div className="col-md-12">
-                    <div className="mb-3">
-                      <label className="form-label fw-medium">Product Name *</label>
-                      <input type="text" className="form-control" value={formData.nameProduct} onChange={(e) => setFormData({ ...formData, nameProduct: e.target.value })} />
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-medium">Selling Retail Price *</label>
+                    <div className="input-group">
+                      <span className="input-group-text">$</span>
+                      <input type="number" className="form-control" value={formData.sellingValueProduct} onChange={(e) => setFormData({ ...formData, sellingValueProduct: parseFloat(e.target.value) || 0 })} />
                     </div>
-                    
-                    {/* 🟢 Punto 4: Componente Dropdown con inyección de botón para Crear Categoría en caliente */}
-                    <div className="mb-3">
-                      <label className="form-label fw-medium">Category *</label>
-                      <div className="input-group">
-                        <select
-                          className="form-select"
-                          value={formData.idCategorySelected}
-                          onChange={(e) => setFormData({ ...formData, idCategorySelected: e.target.value })}
-                        >
-                          <option value="">-- Seleccione una categoría --</option>
-                          {liveCategories.map((cat) => (
-                            <option key={cat.idCategory} value={cat.idCategory}>
-                              {cat.nameCategory}
-                            </option>
-                          ))}
-                        </select>
-                        <button className="btn btn-outline-success" type="button" onClick={() => setShowCategoryModal(true)}>
-                          <i className="bi bi-plus-lg me-1"></i>New Category
-                        </button>
-                      </div>
-                    </div>
+                  </div>
 
-                    <div className="mb-3">
-                      <label className="form-label fw-medium">Image URL</label>
-                      <input type="text" className="form-control" value={formData.image} onChange={(e) => setFormData({ ...formData, image: e.target.value })} placeholder="Enter image link" />
-                    </div>
-
-                    <div className="row">
-                      {/* 🟢 Punto 3 y 6: Ocultamos por completo el costo base en la creación/edición, solo se altera vía compras */}
-                      <div className="col-md-6 mb-3">
-                        <label className="form-label fw-medium">Selling Price *</label>
-                        <div className="input-group">
-                          <span className="input-group-text">$</span>
-                          <input type="number" className="form-control" value={formData.sellingValueProduct} onChange={(e) => setFormData({ ...formData, sellingValueProduct: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                      </div>
-
-                      {/* Stock fijo deshabilitado en 0 durante la creación para cuidar la consistencia */}
-                      <div className="col-md-6 mb-3">
-                        <label className="form-label fw-medium">Initial Stock</label>
-                        <input type="number" className="form-control" value={editingProduct ? editingProduct.stock : 0} disabled />
-                      </div>
-                    </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-medium">Initial Inventory Stock</label>
+                    <input type="number" className="form-control" value={editingProduct ? (typeof editingProduct.stock === 'object' ? (editingProduct.stock as any).amountProducts : editingProduct.stock) : 0} disabled />
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer border-0">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="button" className="btn btn-warning text-white" onClick={handleSubmit}>Save Changes</button>
+                <button type="button" className="btn btn-warning text-white fw-bold" onClick={handleSubmit}>Save Changes</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 🟢 Punto 4 Sub-Modal: Ventana emergente para crear una Categoría en caliente sin perder el foco */}
+      {/* Sub-Modal: Añadir Categoría en caliente */}
       {showCategoryModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1060 }}>
           <div className="modal-dialog modal-dialog-centered modal-sm">
             <div className="modal-content shadow-lg border-0">
-              <div className="modal-header bg-success text-white">
+              <div className="modal-header bg-success text-white py-2">
                 <h6 className="modal-title fw-bold"><i className="bi bi-folder-plus me-2"></i>Quick Add Category</h6>
                 <button type="button" className="btn-close btn-close-white" onClick={() => setShowCategoryModal(false)}></button>
               </div>
-              <div className="modal-body">
-                <div className="mb-3">
+              <div className="modal-body py-3">
+                <div className="mb-2">
                   <label className="form-label small fw-bold">Category Name *</label>
                   <input 
                     type="text" 
@@ -463,25 +444,28 @@ export default function ProductsPage() {
                   />
                 </div>
               </div>
-              <div className="modal-footer p-2">
+              <div className="modal-footer p-2 border-0">
                 <button type="button" className="btn btn-sm btn-secondary" onClick={() => setShowCategoryModal(false)}>Cancel</button>
-                <button type="button" className="btn btn-sm btn-success" onClick={handleCreateCategory}>Save</button>
+                <button type="button" className="btn btn-sm btn-success" onClick={handleCreateCategory}>Save Category</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Modal */}
+      {/* Delete Confirmation Modal */}
       {showDeleteConfirm !== null && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
+          <div className="modal-dialog modal-dialog-centered modal-sm">
+            <div className="modal-content border-0 shadow">
               <div className="modal-body p-4 text-center">
-                <h5>Confirm Delete</h5>
-                <p>Are you sure you want to delete this product?</p>
-                <button className="btn btn-secondary me-2" onClick={() => setShowDeleteConfirm(null)}>Cancel</button>
-                <button className="btn btn-danger" onClick={() => showDeleteConfirm && handleDelete(showDeleteConfirm)}>Delete</button>
+                <i className="bi bi-exclamation-triangle text-danger display-4 d-block mb-3"></i>
+                <h5 className="fw-bold">Confirm Delete</h5>
+                <p className="text-muted small">Are you sure you want to permanently delete this item from your Neon cluster catalog?</p>
+                <div className="d-flex gap-2 justify-content-center mt-3">
+                  <button className="btn btn-sm btn-light px-3" onClick={() => setShowDeleteConfirm(null)}>Cancel</button>
+                  <button className="btn btn-sm btn-danger px-3" onClick={() => showDeleteConfirm && handleDelete(showDeleteConfirm)}>Delete Item</button>
+                </div>
               </div>
             </div>
           </div>

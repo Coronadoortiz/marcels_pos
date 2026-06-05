@@ -17,7 +17,7 @@ import com.marcels.pos.services.PurchaseService;
 
 @RestController
 @RequestMapping("/api/purchases")
-@CrossOrigin(origins = "http://localhost:3000") 
+@CrossOrigin(origins = "http://localhost:3000") // 🟢 Desbloquea la comunicación fluida con Next.js
 public class PurchaseController {
 
     private final PurchaseService purchaseService;
@@ -26,23 +26,27 @@ public class PurchaseController {
         this.purchaseService = purchaseService;
     }
 
+    // 1. Listar el historial completo de compras (Sincronizado con tu Tab de Next.js)
     @GetMapping
     public List<Purchase> getAll() {
         return purchaseService.getAllPurchases();
     }
 
+    // 2. Obtener una compra específica por ID
     @GetMapping("/{id}")
     public ResponseEntity<Purchase> getById(@PathVariable Long id) {
         return ResponseEntity.ok(purchaseService.getPurchaseById(id));
     }
 
+    // 3. 🟢 REGISTRAR COMPRA (POST) - Recibe la orden del frontend e incrementa stock en Neon
     @PostMapping
-    @io.swagger.v3.oas.annotations.Operation(summary = "Registrar una orden de compra al proveedor y sumar stock automáticamente")
     public ResponseEntity<Purchase> create(@RequestBody Purchase purchase) {
-        // Spring Boot deserializará el JSON mapeando internamente 'purchaseDetails' o 'purchaseDetail' (según corregiste)
-        return new ResponseEntity<>(purchaseService.savePurchase(purchase), HttpStatus.CREATED);
+        // El servicio procesará el guardado de la cabecera y el detalle en una sola transacción
+        Purchase savedPurchase = purchaseService.savePurchase(purchase);
+        return new ResponseEntity<>(savedPurchase, HttpStatus.CREATED);
     }
 
+    // 4. Listar el historial de compras filtrado por un Proveedor específico
     @GetMapping("/provider/{providerId}")
     public List<Purchase> getByProvider(@PathVariable Long providerId) {
         return purchaseService.getPurchasesByProvider(providerId);

@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { Product, categories } from '@/lib/data' // Importamos solo la interfaz limpia y categorías fijas
+import { type Product } from '@/lib/data' 
 
 export default function InventoryPage() {
-  // Estado real para almacenar los productos traídos de Neon
   const [products, setProducts] = useState<Product[]>([])
+  const [liveCategories, setLiveCategories] = useState<any[]>([]) // 🟢 NUEVO: Estado para almacenar las categorías reales de Neon
   const [loading, setLoading] = useState(true)
   
   const [searchTerm, setSearchTerm] = useState('')
@@ -14,36 +14,47 @@ export default function InventoryPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
-  // EFECTO CRUCIAL: Consume la API Rest de Spring Boot usando la IP directa de loopback para evitar "Failed to fetch"
+  // 🟢 EFECTO CORREGIDO: Carga de forma masiva y unificada productos y categorías reales desde Spring Boot
   useEffect(() => {
-    fetch('http://127.0.0.1:8080/api/products')
-      .then((res) => {
-        if (!res.ok) throw new Error('Network response was not ok');
-        return res.json();
-      })
-      .then((data) => {
-        setProducts(data)
+    const fetchInventoryData = async () => {
+      try {
+        const [resProducts, resCategories] = await Promise.all([
+          fetch('http://127.0.0.1:8080/api/products'),
+          fetch('http://127.0.0.1:8080/api/categories') // 👈 Trae las categorías vivas
+        ])
+
+        const productsData = await resProducts.json()
+        const categoriesData = await resCategories.json()
+
+        setProducts(Array.isArray(productsData) ? productsData : [])
+        setLiveCategories(Array.isArray(categoriesData) ? categoriesData : [])
         setLoading(false)
-      })
-      .catch((err) => {
-        console.error("Fallo conectando con Spring Boot:", err)
+      } catch (err) {
+        console.error("Fallo conectando con Spring Boot en inventarios:", err)
+        setProducts([])
+        setLiveCategories([])
         setLoading(false)
-      })
+      }
+    }
+
+    fetchInventoryData()
   }, [])
 
-  // Filtrado reactivo usando la lista dinámica 'products' en lugar de la estática
+  // Filtrado reactivo usando la lista dinámica 'products'
   const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      (product.nameProduct?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-      (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
+    if (!product) return false;
     
-    // Obtenemos el string de la categoría evaluando si viene como objeto relacional de la BD o string plano
+    // Simplificado: Ahora busca únicamente por el nombre real del producto
+    const matchesSearch = product.nameProduct?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+    
+    // Obtenemos el nombre de la categoría evaluando de forma segura su relación estructurada
     const categoryName = typeof product.category === 'object' && product.category !== null
       ? (product.category as any).nameCategory
       : product.category;
 
     const matchesCategory =
       selectedCategory === 'All' || categoryName === selectedCategory
+
     return matchesSearch && matchesCategory
   })
 
@@ -55,12 +66,12 @@ export default function InventoryPage() {
 
   const getStockStatus = (stock: number) => {
     if (stock === 0) {
-      return { label: 'Out of Stock', class: 'badge-out-of-stock bg-danger text-white' }
+      return { label: 'Out of Stock', class: 'bg-danger text-white' }
     }
     if (stock <= 10) {
-      return { label: 'Low Stock', class: 'badge-low-stock bg-warning text-dark' }
+      return { label: 'Low Stock', class: 'bg-warning text-dark' }
     }
-    return { label: 'In Stock', class: 'badge-in-stock bg-success text-white' }
+    return { label: 'In Stock', class: 'bg-success text-white' }
   }
 
   if (loading) {
@@ -97,15 +108,12 @@ export default function InventoryPage() {
       </nav>
 
       <div className="container py-4">
-        {/* Stats Row actualizadas dinámicamente */}
+        {/* Stats Row */}
         <div className="row g-4 mb-4">
           <div className="col-md-3">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-body d-flex align-items-center">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center me-3"
-                  style={{ width: 48, height: 48, backgroundColor: '#e2d9f3', color: '#6f42c1' }}
-                >
+                <div className="rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: 48, height: 48, backgroundColor: '#e2d9f3', color: '#6f42c1' }}>
                   <i className="bi bi-box-seam fs-4"></i>
                 </div>
                 <div>
@@ -118,10 +126,7 @@ export default function InventoryPage() {
           <div className="col-md-3">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-body d-flex align-items-center">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center me-3"
-                  style={{ width: 48, height: 48, backgroundColor: '#d1e7dd', color: '#198754' }}
-                >
+                <div className="rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: 48, height: 48, backgroundColor: '#d1e7dd', color: '#198754' }}>
                   <i className="bi bi-check-circle fs-4"></i>
                 </div>
                 <div>
@@ -136,10 +141,7 @@ export default function InventoryPage() {
           <div className="col-md-3">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-body d-flex align-items-center">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center me-3"
-                  style={{ width: 48, height: 48, backgroundColor: '#fff3cd', color: '#856404' }}
-                >
+                <div className="rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: 48, height: 48, backgroundColor: '#fff3cd', color: '#856404' }}>
                   <i className="bi bi-exclamation-triangle fs-4"></i>
                 </div>
                 <div>
@@ -154,10 +156,7 @@ export default function InventoryPage() {
           <div className="col-md-3">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-body d-flex align-items-center">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center me-3"
-                  style={{ width: 48, height: 48, backgroundColor: '#f8d7da', color: '#842029' }}
-                >
+                <div className="rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: 48, height: 48, backgroundColor: '#f8d7da', color: '#842029' }}>
                   <i className="bi bi-x-circle fs-4"></i>
                 </div>
                 <div>
@@ -171,25 +170,24 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters Card */}
         <div className="card border-0 shadow-sm mb-4">
           <div className="card-body">
             <div className="row g-3 align-items-center">
               <div className="col-md-6">
-                <div className="search-wrapper position-relative">
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Search by name or SKU..."
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  />
-                </div>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Search by name..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                />
               </div>
               <div className="col-md-4">
+                {/* 🟢 MAPEADO DINÁMICO: Renderiza las categorías reales traídas desde Neon */}
                 <select
                   className="form-select"
                   value={selectedCategory}
@@ -199,9 +197,9 @@ export default function InventoryPage() {
                   }}
                 >
                   <option value="All">All Categories</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
+                  {liveCategories.map((cat: any) => (
+                    <option key={cat.idCategory} value={cat.nameCategory}>
+                      {cat.nameCategory}
                     </option>
                   ))}
                 </select>
@@ -222,12 +220,12 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {/* Inventory Table */}
+        {/* Table con estructura corregida sin campos eliminados */}
         <div className="card border-0 shadow-sm">
           <div className="card-header bg-white border-0 py-3">
-            <h5 className="mb-0 fw-bold">
+            <h5 className="mb-0 fw-bold text-dark">
               <i className="bi bi-table me-2" style={{ color: '#6f42c1' }}></i>
-              Inventory List
+              Current Stock Inventory List
               <span className="badge bg-secondary ms-2">{filteredProducts.length} items</span>
             </h5>
           </div>
@@ -236,21 +234,20 @@ export default function InventoryPage() {
               <table className="table table-hover mb-0">
                 <thead>
                   <tr>
-                    <th style={{ width: 100 }}>SKU</th>
-                    <th>Product</th>
+                    <th style={{ width: 120 }}>Product ID</th>
+                    <th>Product Name</th>
                     <th>Category</th>
-                    <th className="text-center">Available Stock</th>
-                    <th className="text-end">Sale Price</th>
-                    <th className="text-center">Status</th>
+                    <th className="text-center" style={{ width: 180 }}>Available Units</th>
+                    <th className="text-end" style={{ width: 150 }}>Sale Retail Price</th>
+                    <th className="text-center" style={{ width: 150 }}>Status Badge</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-5 text-muted">
+                      <td colSpan={5} className="text-center py-5 text-muted">
                         <i className="bi bi-search fs-1 d-block mb-3"></i>
-                        <p className="mb-0">No products found</p>
-                        <small>Verify your backend is running or change filters</small>
+                        <p className="mb-0">No matching items found in warehouse stock</p>
                       </td>
                     </tr>
                   ) : (
@@ -259,28 +256,8 @@ export default function InventoryPage() {
                       const status = getStockStatus(stockVal);
                       return (
                         <tr key={product.idProduct}>
-                          <td>
-                            <code className="text-muted">{product.sku}</code>
-                          </td>
-                          <td>
-                            <div className="d-flex align-items-center">
-                              {product.image && (
-                                <img
-                                  src={product.image}
-                                  alt={product.nameProduct}
-                                  className="rounded me-3"
-                                  style={{ width: 48, height: 48, objectFit: 'cover' }}
-                                />
-                              )}
-                              <div>
-                                <div className="fw-medium">{product.nameProduct}</div>
-                                <small className="text-muted text-truncate d-block" style={{ maxWidth: 200 }}>
-                                  {product.description}
-                                </small>
-                              </div>
-                            </div>
-                          </td>
-                          {/* 🟢 SOLUCIÓN AL CRASH: Evaluamos de forma segura si la categoría es un objeto relacional */}
+                          <td><span className="text-muted fw-bold">#{product.idProduct}</span></td>
+                          <td><div className="fw-medium text-dark">{product.nameProduct}</div></td>
                           <td>
                             <span className="badge bg-light text-dark">
                               {typeof product.category === 'object' && product.category !== null
@@ -289,19 +266,11 @@ export default function InventoryPage() {
                             </span>
                           </td>
                           <td className="text-center">
-                            <span
-                              className={`fw-bold ${
-                                stockVal === 0
-                                  ? 'text-danger'
-                                  : stockVal <= 10
-                                  ? 'text-warning'
-                                  : 'text-success'
-                              }`}
-                            >
-                              {stockVal}
+                            <span className={`fw-bold ${stockVal === 0 ? 'text-danger' : stockVal <= 10 ? 'text-warning' : 'text-success'}`}>
+                              {stockVal} units
                             </span>
                           </td>
-                          <td className="text-end fw-semibold">
+                          <td className="text-end fw-semibold text-primary">
                             ${(product.sellingValueProduct || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </td>
                           <td className="text-center">
@@ -328,32 +297,15 @@ export default function InventoryPage() {
                 <nav>
                   <ul className="pagination mb-0">
                     <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                      <button
-                        className="page-link"
-                        onClick={() => setCurrentPage(currentPage - 1)}
-                        disabled={currentPage === 1}
-                      >
-                        <i className="bi bi-chevron-left"></i>
-                      </button>
+                      <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}><i className="bi bi-chevron-left"></i></button>
                     </li>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <li
-                        key={page}
-                        className={`page-item ${currentPage === page ? 'active' : ''}`}
-                      >
-                        <button className="page-link" onClick={() => setCurrentPage(page)}>
-                          {page}
-                        </button>
+                      <li key={page} className={`page-item ${currentPage === page ? 'active' : ''}`}>
+                        <button className="page-link" onClick={() => setCurrentPage(page)}>{page}</button>
                       </li>
                     ))}
                     <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                      <button
-                        className="page-link"
-                        onClick={() => setCurrentPage(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                      >
-                        <i className="bi bi-chevron-right"></i>
-                      </button>
+                      <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === totalPages}><i className="bi bi-chevron-right"></i></button>
                     </li>
                   </ul>
                 </nav>

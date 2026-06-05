@@ -1,10 +1,12 @@
 package com.marcels.pos.services.impl;
 
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+
 import com.marcels.pos.models.entities.Provider;
 import com.marcels.pos.models.repositories.ProviderRepository;
 import com.marcels.pos.services.ProviderService;
-import org.springframework.stereotype.Service;
-import java.util.List;
 
 @Service // Tells Spring Boot to manage this class as a core business service bean
 public class ProviderServiceImpl implements ProviderService {

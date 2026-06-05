@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
 
 const modules = [
   {
-    title: 'Sales',
+    title: 'Sales (POS)',
     description: 'Point of Sale system to process customer orders and generate invoices',
     icon: 'bi-cart-check-fill',
     color: '#0d6efd',
@@ -13,42 +14,108 @@ const modules = [
   },
   {
     title: 'Purchase Orders',
-    description: 'Manage supplier orders and inventory restocking',
-    icon: 'bi-box-seam-fill',
+    description: 'Manage supplier orders and inventory restocking records',
+    icon: 'bi-truck',
     color: '#198754',
     bgColor: '#d1e7dd',
     href: '/purchases',
   },
   {
-    title: 'Inventory',
-    description: 'Track stock levels, manage warehouses and monitor products',
+    title: 'Inventory Control',
+    description: 'Track stock levels, audit physical units and monitor product logs',
     icon: 'bi-clipboard-data-fill',
     color: '#6f42c1',
     bgColor: '#e2d9f3',
     href: '/inventory',
   },
   {
-    title: 'Products',
-    description: 'Add, edit and manage your product catalog',
+    title: 'Products Catalog',
+    description: 'Add, edit and manage your lean product core criteria',
     icon: 'bi-tags-fill',
     color: '#fd7e14',
     bgColor: '#ffe5d0',
     href: '/products',
   },
   {
-    title: 'Reports',
-    description: 'View sales analytics, KPIs and business insights',
+    title: 'Finance & Reports',
+    description: 'View profit margins, historical sales data and cost structures',
     icon: 'bi-graph-up-arrow',
     color: '#dc3545',
     bgColor: '#f8d7da',
     href: '/reports',
-  },
+  }
 ]
 
 export default function Dashboard() {
+  const [products, setProducts] = useState<any[]>([])
+  const [sales, setSales] = useState<any[]>([])
+  const [purchases, setPurchases] = useState<any[]>([]) // 🟢 NUEVO: Estado para cargar histórico de compras
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchDashboardMetrics = async () => {
+      try {
+        const [resProducts, resSales, resPurchases] = await Promise.all([
+          fetch('http://127.0.0.1:8080/api/products'),
+          fetch('http://127.0.0.1:8080/api/sales'),
+          fetch('http://127.0.0.1:8080/api/purchases') // 🟢 Trae las compras guardadas en Neon
+        ])
+
+        setProducts(await resProducts.json())
+        setSales(await resSales.json())
+        setPurchases(await resPurchases.json())
+        setLoading(false)
+      } catch (error) {
+        console.error("Fallo al conectar el Dashboard principal con Spring Boot:", error)
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardMetrics()
+  }, [])
+
+  // =========================================================
+  // 🟢 BALANCES FINANCIEROS Y DE INVENTARIO EN TIEMPO REAL
+  // =========================================================
+  
+  // 1. FINANZAS: Ingresos brutos generados por las ventas relacionales
+  const totalSalesRevenue = (Array.isArray(sales) ? sales : []).reduce((sum, sale) => {
+    const details = sale.saleDetails || [];
+    return sum + details.reduce((s: number, d: any) => s + ((d.product?.sellingValueProduct || 0) * (d.amountProducts || 0)), 0);
+  }, 0);
+
+  // 2. FINANZAS: Costos totales por reabastecimiento (Egresos de Compras)
+  const totalPurchasesCost = (Array.isArray(purchases) ? purchases : []).reduce((sum, purchase) => {
+    const details = purchase.purchaseDetails || [];
+    return sum + details.reduce((s: number, d: any) => s + ((d.purchasePriceUnit || d.purchaseProductPrice || 0) * (d.amountPurchased || 0)), 0);
+  }, 0);
+
+  // 3. FINANZAS: Utilidad Neta real (Ganancia = Ventas - Compras)
+  const netProfit = totalSalesRevenue - totalPurchasesCost;
+
+  // 4. INVENTARIO: Conteo total de unidades físicas en tbl_stocks vía tu ProductServiceImpl
+  const totalStockUnits = (Array.isArray(products) ? products : []).reduce((sum, p) => sum + (p.stock || 0), 0);
+
+  // 5. INVENTARIO: Alertas de stock crítico (Productos con stock <= 5)
+  const lowStockItems = (Array.isArray(products) ? products : []).filter(p => (p.stock ?? 0) <= 5);
+
+  // Historial resumido para las tablas inferiores
+  const recentSales = (Array.isArray(sales) ? [...sales] : []).reverse().slice(0, 4);
+
+  if (loading) {
+    return (
+      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-2" role="status"></div>
+          <p className="text-muted fw-bold">Compiling Real-Time ERP Metrics...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-vh-100" style={{ backgroundColor: '#f8f9fa' }}>
-      {/* Header */}
+      {/* Navbar */}
       <nav className="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
         <div className="container">
           <Link href="/" className="navbar-brand d-flex align-items-center">
@@ -56,159 +123,92 @@ export default function Dashboard() {
             <span className="fw-bold">InventoryPro</span>
           </Link>
           <div className="d-flex align-items-center">
-            <button className="btn btn-light me-2">
-              <i className="bi bi-bell"></i>
-            </button>
-            <button className="btn btn-light me-2">
-              <i className="bi bi-gear"></i>
-            </button>
-            <div className="dropdown">
-              <button
-                className="btn btn-light dropdown-toggle d-flex align-items-center"
-                type="button"
-                data-bs-toggle="dropdown"
-              >
-                <div
-                  className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2"
-                  style={{ width: 32, height: 32 }}
-                >
-                  <span className="small">JD</span>
-                </div>
-                <span className="d-none d-md-inline">John Doe</span>
-              </button>
-              <ul className="dropdown-menu dropdown-menu-end">
-                <li>
-                  <a className="dropdown-item" href="#">
-                    <i className="bi bi-person me-2"></i>Profile
-                  </a>
-                </li>
-                <li>
-                  <a className="dropdown-item" href="#">
-                    <i className="bi bi-gear me-2"></i>Settings
-                  </a>
-                </li>
-                <li>
-                  <hr className="dropdown-divider" />
-                </li>
-                <li>
-                  <a className="dropdown-item" href="#">
-                    <i className="bi bi-box-arrow-right me-2"></i>Logout
-                  </a>
-                </li>
-              </ul>
-            </div>
+            <span className="badge bg-dark px-3 py-2 fs-6 me-3">
+              <i className="bi bi-cash-stack me-2 text-warning"></i>Net Gain: ${netProfit.toFixed(2)}
+            </span>
           </div>
         </div>
       </nav>
 
       {/* Main Content */}
       <main className="container py-5">
-        {/* Welcome Section */}
         <div className="text-center mb-5">
-          <h1 className="display-5 fw-bold text-dark mb-3">Welcome to InventoryPro</h1>
-          <p className="lead text-muted">
-            Complete inventory and sales management system for your business
-          </p>
+          <h1 className="display-5 fw-bold text-dark mb-2">Welcome to InventoryPro</h1>
+          <p className="lead text-muted">Integrated ERP Panel tracking your live relational database infrastructure</p>
         </div>
 
-        {/* Quick Stats */}
+        {/* 🟢 TARJETAS DE INDICADORES (KPIs RECIÉN RESTAURADOS) */}
         <div className="row g-4 mb-5">
+          {/* Tarjeta Finanzas: Ingresos */}
           <div className="col-6 col-lg-3">
             <div className="card h-100 border-0 shadow-sm">
               <div className="card-body text-center">
-                <div
-                  className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center"
-                  style={{
-                    width: 48,
-                    height: 48,
-                    backgroundColor: '#e7f1ff',
-                    color: '#0d6efd',
-                  }}
-                >
-                  <i className="bi bi-currency-dollar fs-4"></i>
+                <div className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#e7f1ff', color: '#0d6efd' }}>
+                  <i className="bi bi-cash-coin fs-4"></i>
                 </div>
-                <h3 className="fw-bold mb-1">$12,450</h3>
-                <p className="text-muted small mb-0">{"Today's Sales"}</p>
+                <h3 className="fw-bold mb-1">${totalSalesRevenue.toFixed(2)}</h3>
+                <p className="text-muted small mb-0">Total Sales Gross Revenue</p>
               </div>
             </div>
           </div>
+          
+          {/* Tarjeta Finanzas: Utilidad Real */}
           <div className="col-6 col-lg-3">
             <div className="card h-100 border-0 shadow-sm">
               <div className="card-body text-center">
-                <div
-                  className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center"
-                  style={{
-                    width: 48,
-                    height: 48,
-                    backgroundColor: '#d1e7dd',
-                    color: '#198754',
-                  }}
-                >
-                  <i className="bi bi-receipt fs-4"></i>
+                <div className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#f8d7da', color: '#dc3545' }}>
+                  <i className="bi bi-graph-up text-danger fs-4"></i>
                 </div>
-                <h3 className="fw-bold mb-1">48</h3>
-                <p className="text-muted small mb-0">Orders Today</p>
+                <h3 className={`fw-bold mb-1 ${netProfit >= 0 ? 'text-success' : 'text-danger'}`}>
+                  ${netProfit.toFixed(2)}
+                </h3>
+                <p className="text-muted small mb-0">Net Profits Balance</p>
               </div>
             </div>
           </div>
+
+          {/* Tarjeta Inventario: Unidades Físicas Reales */}
           <div className="col-6 col-lg-3">
             <div className="card h-100 border-0 shadow-sm">
               <div className="card-body text-center">
-                <div
-                  className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center"
-                  style={{
-                    width: 48,
-                    height: 48,
-                    backgroundColor: '#fff3cd',
-                    color: '#856404',
-                  }}
-                >
+                <div className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#e2d9f3', color: '#6f42c1' }}>
+                  <i className="bi bi-clipboard-data fs-4"></i>
+                </div>
+                <h3 className="fw-bold mb-1 text-purple" style={{ color: '#6f42c1' }}>{totalStockUnits}</h3>
+                <p className="text-muted small mb-0">Total Inventory Units</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tarjeta Catálogo: SKUs */}
+          <div className="col-6 col-lg-3">
+            <div className="card h-100 border-0 shadow-sm">
+              <div className="card-body text-center">
+                <div className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#ffe5d0', color: '#fd7e14' }}>
                   <i className="bi bi-exclamation-triangle fs-4"></i>
                 </div>
-                <h3 className="fw-bold mb-1">12</h3>
-                <p className="text-muted small mb-0">Low Stock Items</p>
-              </div>
-            </div>
-          </div>
-          <div className="col-6 col-lg-3">
-            <div className="card h-100 border-0 shadow-sm">
-              <div className="card-body text-center">
-                <div
-                  className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center"
-                  style={{
-                    width: 48,
-                    height: 48,
-                    backgroundColor: '#e2d9f3',
-                    color: '#6f42c1',
-                  }}
-                >
-                  <i className="bi bi-boxes fs-4"></i>
-                </div>
-                <h3 className="fw-bold mb-1">1,245</h3>
-                <p className="text-muted small mb-0">Total Products</p>
+                <h3 className="fw-bold mb-1 text-warning">{lowStockItems.length}</h3>
+                <p className="text-muted small mb-0">Critical Low Stock Items</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Module Cards */}
-        <h2 className="h4 fw-bold mb-4">Modules</h2>
+        {/* Bloque de Módulos */}
+        <h2 className="h4 fw-bold mb-4">Core Modules Menu</h2>
         <div className="row g-4">
           {modules.map((module) => (
             <div key={module.title} className="col-md-6 col-lg-4">
               <Link href={module.href} className="text-decoration-none">
-                <div className="card card-module h-100 border-0 shadow-sm">
+                <div className="card border-0 shadow-sm h-100">
                   <div className="card-body p-4">
-                    <div
-                      className="icon-wrapper mb-3"
-                      style={{ backgroundColor: module.bgColor, color: module.color }}
-                    >
-                      <i className={`bi ${module.icon}`}></i>
+                    <div className="mb-3 rounded d-flex align-items-center justify-content-center" style={{ width: 40, height: 40, backgroundColor: module.bgColor, color: module.color }}>
+                      <i className={`bi ${module.icon} fs-5`}></i>
                     </div>
                     <h5 className="card-title fw-bold text-dark mb-2">{module.title}</h5>
-                    <p className="card-text text-muted mb-4">{module.description}</p>
-                    <div className="d-flex align-items-center" style={{ color: module.color }}>
-                      <span className="fw-semibold">Enter Module</span>
+                    <p className="card-text text-muted small mb-4">{module.description}</p>
+                    <div className="d-flex align-items-center small fw-bold" style={{ color: module.color }}>
+                      <span>Open operational view</span>
                       <i className="bi bi-arrow-right ms-2"></i>
                     </div>
                   </div>
@@ -218,102 +218,84 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Recent Activity */}
+        {/* Tablas de Monitoreo Inferiores */}
         <div className="row mt-5">
+          {/* Historial de Facturas */}
           <div className="col-lg-6 mb-4">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-header bg-white border-0 py-3">
-                <h5 className="mb-0 fw-bold">Recent Sales</h5>
+                <h5 className="mb-0 fw-bold"><i className="bi bi-receipt text-primary me-2"></i>Recent Sales Log</h5>
               </div>
               <div className="card-body p-0">
                 <div className="table-responsive">
                   <table className="table table-hover mb-0">
-                    <thead>
+                    <thead className="table-light">
                       <tr>
-                        <th>Invoice</th>
-                        <th>Customer</th>
-                        <th className="text-end">Amount</th>
+                        <th>Invoice ID</th>
+                        <th>Products Sold</th>
+                        <th className="text-end">Paid Amount</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td>
-                          <span className="text-primary">#INV-0045</span>
-                        </td>
-                        <td>John Smith</td>
-                        <td className="text-end fw-semibold">$245.00</td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <span className="text-primary">#INV-0044</span>
-                        </td>
-                        <td>Sarah Johnson</td>
-                        <td className="text-end fw-semibold">$127.50</td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <span className="text-primary">#INV-0043</span>
-                        </td>
-                        <td>Mike Wilson</td>
-                        <td className="text-end fw-semibold">$89.99</td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <span className="text-primary">#INV-0042</span>
-                        </td>
-                        <td>Emily Brown</td>
-                        <td className="text-end fw-semibold">$312.00</td>
-                      </tr>
+                      {recentSales.length === 0 ? (
+                        <tr><td colSpan={3} className="text-center py-4 text-muted">No sales logged in your Neon cluster yet.</td></tr>
+                      ) : (
+                        recentSales.map((sale: any) => {
+                          const details = sale.saleDetails || [];
+                          const amountPaid = details.reduce((sum: number, d: any) => sum + ((d.product?.sellingValueProduct || 0) * (d.amountProducts || 0)), 0);
+                          
+                          return (
+                            <tr key={sale.idSale}>
+                              <td><span className="fw-bold text-primary">#INV-{sale.idSale}</span></td>
+                              <td>
+                                <div className="small text-truncate" style={{ maxWidth: '240px' }}>
+                                  {details.map((d: any) => d.product?.nameProduct).join(', ') || 'N/A'}
+                                </div>
+                              </td>
+                              <td className="text-end fw-bold text-dark">${amountPaid.toFixed(2)}</td>
+                            </tr>
+                          )
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Alertas de Abastecimiento Crítico */}
           <div className="col-lg-6 mb-4">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-header bg-white border-0 py-3">
-                <h5 className="mb-0 fw-bold">Low Stock Alerts</h5>
+                <h5 className="mb-0 fw-bold"><i className="bi bi-exclamation-octagon text-danger me-2"></i>Critical Low Stock Alerts</h5>
               </div>
               <div className="card-body p-0">
                 <div className="table-responsive">
                   <table className="table table-hover mb-0">
-                    <thead>
+                    <thead className="table-light">
                       <tr>
-                        <th>Product</th>
-                        <th className="text-center">Stock</th>
+                        <th>Product Name</th>
+                        <th className="text-center">Stock Left</th>
                         <th className="text-end">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td>Standing Desk</td>
-                        <td className="text-center">0</td>
-                        <td className="text-end">
-                          <span className="badge badge-out-of-stock">Out of Stock</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>SSD 500GB</td>
-                        <td className="text-center">3</td>
-                        <td className="text-end">
-                          <span className="badge badge-low-stock">Low Stock</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Ballpoint Pen Set</td>
-                        <td className="text-center">8</td>
-                        <td className="text-end">
-                          <span className="badge badge-low-stock">Low Stock</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Ergonomic Chair</td>
-                        <td className="text-center">15</td>
-                        <td className="text-end">
-                          <span className="badge badge-low-stock">Low Stock</span>
-                        </td>
-                      </tr>
+                      {lowStockItems.length === 0 ? (
+                        <tr><td colSpan={3} className="text-center py-4 text-success fw-semibold">🎉 All inventory balances stable.</td></tr>
+                      ) : (
+                        lowStockItems.slice(0, 4).map((product: any) => (
+                          <tr key={product.idProduct}>
+                            <td><div className="fw-medium small text-dark">{product.nameProduct}</div></td>
+                            <td className="text-center fw-bold text-danger">{product.stock ?? 0} units</td>
+                            <td className="text-end">
+                              <span className={`badge px-2 py-1 ${(product.stock ?? 0) === 0 ? 'bg-danger text-white' : 'bg-warning text-dark'}`}>
+                                {(product.stock ?? 0) === 0 ? 'Out of Stock' : 'Low Stock'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -323,10 +305,9 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="bg-white border-top py-4 mt-auto">
         <div className="container text-center text-muted">
-          <p className="mb-0">InventoryPro ERP System - Inventory & Sales Management</p>
+          <p className="mb-0">InventoryPro ERP System - UdeA Techniques Laboratory Integration</p>
         </div>
       </footer>
     </div>

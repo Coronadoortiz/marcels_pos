@@ -25,7 +25,8 @@ public class PurchaseDetail {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "id_purchase", nullable = false)
+    @JoinColumn(name = "id_purchase")
+    @com.fasterxml.jackson.annotation.JsonIgnore // 👈 CRUCIAL: Evita que Jackson se meta en un bucle infinito al responder
     private Purchase purchase;
 
     @ManyToOne
