@@ -9,22 +9,51 @@ export default function InventoryPage() {
   const [liveCategories, setLiveCategories] = useState<any[]>([]) 
   const [loading, setLoading] = useState(true)
   
-  // 🟢 ESTADOS AÑADIDOS PARA EL MODAL
+  // 🟢 ESTADOS AÑADIDOS PARA EL MODAL (NUEVOS)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
+  const [newMethodName, setNewMethodName] = useState('')
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editName, setEditName] = useState('')
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
-  // Función para cargar métodos de pago
+  // 🟢 FUNCIONES CRUD PARA EL MODAL (NUEVAS)
   const fetchPaymentMethods = async () => {
     try {
       const res = await fetch('http://127.0.0.1:8080/api/payment-methods')
       const data = await res.json()
       setPaymentMethods(data)
     } catch (err) { console.error("Error fetching methods", err) }
+  }
+
+  const handleAdd = async () => {
+    if (!newMethodName.trim()) return;
+    await fetch('http://127.0.0.1:8080/api/payment-methods', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ namePaymentMethod: newMethodName })
+    })
+    setNewMethodName(''); fetchPaymentMethods();
+  }
+
+  const handleDelete = async (id: number) => {
+    if (paymentMethods.length <= 1) return alert("Debe haber al menos un método de pago.");
+    await fetch(`http://127.0.0.1:8080/api/payment-methods/${id}`, { method: 'DELETE' });
+    fetchPaymentMethods();
+  }
+
+  const handleUpdate = async (id: number) => {
+    if (!editName.trim()) return;
+    await fetch(`http://127.0.0.1:8080/api/payment-methods/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ namePaymentMethod: editName })
+    })
+    setEditingId(null); fetchPaymentMethods();
   }
 
   useEffect(() => {
@@ -109,7 +138,7 @@ export default function InventoryPage() {
             </Link>
           </div>
           <div className="d-flex align-items-center">
-            {/* 🟢 BOTÓN DE GESTIÓN AÑADIDO */}
+            {/* 🟢 BOTÓN MODIFICADO PARA ABRIR MODAL */}
             <button 
               className="btn btn-outline-secondary btn-sm me-3" 
               onClick={() => { fetchPaymentMethods(); setShowPaymentModal(true); }}
@@ -330,21 +359,38 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* 🟢 MODAL EMERGENTE DE GESTIÓN */}
+      {/* 🟢 MODAL GESTIÓN PAGOS */}
       {showPaymentModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Manage Payment Methods</h5>
-                <button type="button" className="btn-close" onClick={() => setShowPaymentModal(false)}></button>
+                <h5 className="modal-title">Gestión de Métodos de Pago</h5>
+                <button className="btn-close" onClick={() => setShowPaymentModal(false)}></button>
               </div>
               <div className="modal-body">
+                <div className="input-group mb-3">
+                  <input className="form-control" placeholder="Nombre nuevo método" value={newMethodName} onChange={(e) => setNewMethodName(e.target.value)} />
+                  <button className="btn btn-primary" onClick={handleAdd}>Agregar</button>
+                </div>
                 <ul className="list-group">
                   {paymentMethods.map(m => (
                     <li key={m.idPaymentMethod} className="list-group-item d-flex justify-content-between align-items-center">
-                      {m.namePaymentMethod}
-                      <button className="btn btn-sm btn-danger">Delete</button>
+                      {editingId === m.idPaymentMethod ? (
+                        <input className="form-control form-control-sm me-2" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                      ) : (
+                        <span>{m.namePaymentMethod}</span>
+                      )}
+                      <div>
+                        {editingId === m.idPaymentMethod ? (
+                          <button className="btn btn-sm btn-success me-2" onClick={() => handleUpdate(m.idPaymentMethod)}>Guardar</button>
+                        ) : (
+                          <button className="btn btn-sm btn-warning me-2" onClick={() => { setEditingId(m.idPaymentMethod); setEditName(m.namePaymentMethod); }}>Modificar</button>
+                        )}
+                        {paymentMethods.length > 1 && (
+                          <button className="btn btn-sm btn-danger" onClick={() => handleDelete(m.idPaymentMethod)}>Eliminar</button>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
