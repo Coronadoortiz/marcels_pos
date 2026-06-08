@@ -11,7 +11,7 @@ import com.marcels.pos.services.PaymentMethodService;
 
 @RestController
 @RequestMapping("/api/payment-methods")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "http://localhost:3000", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
 public class PaymentMethodController {
 
     private final PaymentMethodService paymentMethodService;
