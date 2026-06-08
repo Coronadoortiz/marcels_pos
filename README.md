@@ -28,27 +28,55 @@ erDiagram
         varchar name_product
         numeric selling_value_product
         integer stock
+        bigint id_category FK
     }
-    
+    tbl_categories {
+        bigint id_category PK
+        varchar name_category
+    }
+    tbl_providers {
+        bigint id_provider PK
+        varchar name_provider
+        varchar nit_provider
+    }
     tbl_payment_methods {
         bigint id_payment_method PK
         varchar name_payment_method
     }
-    
     tbl_sales {
         bigint id_sale PK
         timestamp date_sale
-        numeric total_amount_sale
         bigint id_payment_method FK
     }
-    
     tbl_sales_details {
         bigint id_sale_detail PK
         bigint id_sale FK
         bigint id_product FK
         integer amount_products
     }
+    tbl_purchases {
+        bigint id_purchase PK
+        timestamp date_purchase
+        bigint id_provider FK
+    }
+    tbl_purchase_details {
+        bigint id_purchase_detail PK
+        bigint id_purchase FK
+        bigint id_product FK
+        integer amount_purchased
+        numeric purchase_product_price
+    }
+    tbl_audit_logs {
+        bigint id_log PK
+        varchar action_type
+        timestamp log_date
+        varchar detail
+    }
 
-    tbl_sales }|--|| tbl_payment_methods : "se paga con"
-    tbl_sales_details }|--|| tbl_sales : "pertenece a"
+    tbl_products }|--|| tbl_categories : "pertenece"
+    tbl_sales }|--|| tbl_payment_methods : "usa"
+    tbl_sales_details }|--|| tbl_sales : "es parte de"
     tbl_sales_details }|--|| tbl_products : "contiene"
+    tbl_purchases }|--|| tbl_providers : "proveído por"
+    tbl_purchase_details }|--|| tbl_purchases : "es parte de"
+    tbl_purchase_details }|--|| tbl_products : "contiene"
