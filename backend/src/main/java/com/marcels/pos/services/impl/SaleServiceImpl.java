@@ -7,15 +7,17 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.marcels.pos.models.entities.PaymentMethod;
 import com.marcels.pos.models.entities.Product;
 import com.marcels.pos.models.entities.Sale;
 import com.marcels.pos.models.entities.SaleDetail;
 import com.marcels.pos.models.entities.Stock;
+import com.marcels.pos.models.repositories.PaymentMethodRepository;
 import com.marcels.pos.models.repositories.ProductRepository;
 import com.marcels.pos.models.repositories.SaleDetailRepository;
-import com.marcels.pos.models.repositories.SaleRepository;
-import com.marcels.pos.models.repositories.StockRepository; // Asegúrate de tener este import
-import com.marcels.pos.services.SaleService;
+import com.marcels.pos.models.repositories.SaleRepository; // Asegúrate de tener este import
+import com.marcels.pos.models.repositories.StockRepository;
+import com.marcels.pos.services.SaleService; // Import para el repositorio de métodos de pago
 
 @Service
 public class SaleServiceImpl implements SaleService {
@@ -24,63 +26,62 @@ public class SaleServiceImpl implements SaleService {
     private final SaleDetailRepository saleDetailRepository;
     private final StockRepository stockRepository;
     private final ProductRepository productRepository; // Inyectamos el repositorio de productos
+    private final PaymentMethodRepository paymentMethodRepository; // Inyectamos el repositorio de métodos de pago
 
     public SaleServiceImpl(SaleRepository saleRepository, 
                            SaleDetailRepository saleDetailRepository, 
                            StockRepository stockRepository,
-                           ProductRepository productRepository) {
+                           ProductRepository productRepository,
+                           PaymentMethodRepository paymentMethodRepository) {
         this.saleRepository = saleRepository;
         this.saleDetailRepository = saleDetailRepository;
         this.stockRepository = stockRepository;
         this.productRepository = productRepository;
+        this.paymentMethodRepository = paymentMethodRepository;
     }
 
-    @Override
-    @Transactional // All-or-Nothing! Si algo falla, se revierte todo de Neon automáticamente
+@Override
+    @Transactional
     public Sale saveSale(Sale sale) {
-        // 1. Validar que la venta contenga productos
-        if (sale.getSaleDetails() == null || sale.getSaleDetails().isEmpty()) {
-            throw new IllegalArgumentException("Cannot process a sale without products.");
+        // 2. Validación de Método de Pago antes de procesar
+        if (sale.getPaymentMethod() == null || sale.getPaymentMethod().getIdPaymentMethod() == null) {
+            throw new IllegalArgumentException("Se requiere un método de pago válido.");
         }
 
-        // 2. Asegurar que la fecha se registre al momento exacto de la transacción en el servidor
+        // Buscamos el método de pago persistido para asegurar la integridad
+        PaymentMethod pm = paymentMethodRepository.findById(sale.getPaymentMethod().getIdPaymentMethod())
+        .orElseThrow(() -> new RuntimeException("Método de pago no encontrado con ID: " 
+                + sale.getPaymentMethod().getIdPaymentMethod()));
+        sale.setPaymentMethod(pm);
+
+        if (sale.getSaleDetails() == null || sale.getSaleDetails().isEmpty()) {
+            throw new IllegalArgumentException("No se puede procesar una venta sin productos.");
+        }
+
         if (sale.getDateSale() == null) {
             sale.setDateSale(LocalDateTime.now());
         }
 
-        // 3. Enlazar detalles con el padre y ASIGNAR EL PRECIO REAL DEL CATÁLOGO
         BigDecimal totalCalculadoVenta = BigDecimal.ZERO;
 
         for (SaleDetail detail : sale.getSaleDetails()) {
             detail.setSale(sale);
-
-            // EXTRAEMOS EL PRODUCTO REAL DE LA BASE DE DATOS PARA OBTENER SU PRECIO GUARDADO
             Product productReal = productRepository.findById(detail.getProduct().getIdProduct())
-                    .orElseThrow(() -> new RuntimeException("Product not found with ID: " 
-                            + detail.getProduct().getIdProduct()));
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado."));
             
-            // Reemplazamos el precio del JSON por el precio real del catálogo (sellingValueProduct)
             detail.setUnitProductPrice(productReal.getSellingValueProduct());
-            
-            // Re-inyectamos el producto completo para que el flujo de stock no tenga problemas
             detail.setProduct(productReal);
-
-            // (Opcional) Calculamos el subtotal de esta línea para acumularlo en el total general
+            
             BigDecimal precioBD = BigDecimal.valueOf(productReal.getSellingValueProduct());
             BigDecimal cantidad = BigDecimal.valueOf(detail.getAmountProducts());
             totalCalculadoVenta = totalCalculadoVenta.add(precioBD.multiply(cantidad));
         }
 
-        // 4. Forzar que el totalAmountSale de la cabecera sea el calculado matemáticamente por el servidor
         sale.setTotalAmountSale(totalCalculadoVenta);
 
-        // 5. Validar disponibilidad de inventario para todos los productos solicitados
         validateStockAvailability(sale.getSaleDetails());
-
-        // 6. Restar de forma segura las unidades de la tabla de Inventario (tbl_stocks)
         updateInventoryStock(sale.getSaleDetails());
 
-        // 7. Guardar en cascada
         return saleRepository.save(sale);
     }
 
@@ -118,7 +119,7 @@ public class SaleServiceImpl implements SaleService {
     }
 
     @Override
-    public List<Sale> getSalesByPaymentMethod(Long paymentMethodId) {
+    public List<Sale> getSalesByPaymentMethod(Integer paymentMethodId) {
         com.marcels.pos.models.entities.PaymentMethod pm = new com.marcels.pos.models.entities.PaymentMethod();
         pm.setIdPaymentMethod(paymentMethodId);
         return saleRepository.findByPaymentMethod(pm);
