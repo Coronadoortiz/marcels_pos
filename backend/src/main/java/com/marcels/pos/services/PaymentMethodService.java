@@ -7,7 +7,7 @@ import com.marcels.pos.models.entities.PaymentMethod;
 public interface PaymentMethodService {
     List<PaymentMethod> getAll();
     PaymentMethod create(PaymentMethod paymentMethod);
-    PaymentMethod update(Long id, PaymentMethod paymentMethod);
-    void delete(Long id);
-    PaymentMethod getById(Long id);
+    PaymentMethod update(Integer id, PaymentMethod paymentMethod);
+    void delete(Integer id);
+    PaymentMethod getById(Integer id);
 }
