@@ -4,35 +4,41 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.marcels.pos.models.entities.PaymentMethod;
-import com.marcels.pos.models.repositories.PaymentMethodRepository;
+import com.marcels.pos.services.PaymentMethodService;
 
 @RestController
 @RequestMapping("/api/payment-methods")
 @CrossOrigin(origins = "http://localhost:3000")
 public class PaymentMethodController {
 
-    private final PaymentMethodRepository paymentMethodRepository;
+    private final PaymentMethodService paymentMethodService;
 
-    public PaymentMethodController(PaymentMethodRepository paymentMethodRepository) {
-        this.paymentMethodRepository = paymentMethodRepository;
+    // Ahora inyectamos el servicio en lugar del repositorio
+    public PaymentMethodController(PaymentMethodService paymentMethodService) {
+        this.paymentMethodService = paymentMethodService;
     }
 
     @GetMapping
     public List<PaymentMethod> getAll() {
-        return paymentMethodRepository.findAll();
+        return paymentMethodService.getAll();
     }
 
     @PostMapping
     public ResponseEntity<PaymentMethod> create(@RequestBody PaymentMethod paymentMethod) {
-        PaymentMethod savedMethod = paymentMethodRepository.save(paymentMethod);
-        return new ResponseEntity<>(savedMethod, HttpStatus.CREATED);
+        return new ResponseEntity<>(paymentMethodService.create(paymentMethod), HttpStatus.CREATED);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<PaymentMethod> update(@PathVariable Integer id, @RequestBody PaymentMethod paymentMethod) {
+        return ResponseEntity.ok(paymentMethodService.update(id, paymentMethod));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
+        paymentMethodService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }
