@@ -26,6 +26,4 @@ public class PaymentMethod {
     @Column(name = "name_payment_method", nullable = false, length = 50)
     private String namePaymentMethod;
 
-    @Column(name = "active", nullable = false)
-    private boolean active = true; 
 }

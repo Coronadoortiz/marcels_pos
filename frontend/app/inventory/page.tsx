@@ -10,69 +10,37 @@ export default function InventoryPage() {
   const [liveCategories, setLiveCategories] = useState<any[]>([]) 
   const [loading, setLoading] = useState(true)
   
-  // 🟢 ESTADOS AÑADIDOS PARA EL MODAL
+  // 🟢 ESTADO PARA EL MODAL DE SOLO LECTURA
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
-  const [newMethodName, setNewMethodName] = useState('')
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [editName, setEditName] = useState('')
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
-  // Función para cargar métodos de pago
+  // Función para cargar métodos de pago (Solo consulta)
   const fetchPaymentMethods = async () => {
     try {
       const res = await fetch('http://127.0.0.1:8080/api/payment-methods')
       const data = await res.json()
-      setPaymentMethods(data)
+      setPaymentMethods(Array.isArray(data) ? data : [])
     } catch (err) { console.error("Error fetching methods", err) }
-  }
-
-  const handleAdd = async () => {
-    if (!newMethodName.trim()) return;
-    await fetch('http://127.0.0.1:8080/api/payment-methods', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ namePaymentMethod: newMethodName })
-    })
-    setNewMethodName(''); fetchPaymentMethods();
-  }
-
-  const handleDelete = async (id: number) => {
-    if (paymentMethods.length <= 1) return alert("Debe haber al menos un método de pago.");
-    await fetch(`http://127.0.0.1:8080/api/payment-methods/${id}`, { method: 'DELETE' });
-    fetchPaymentMethods();
-  }
-
-  const handleUpdate = async (id: number) => {
-    if (!editName.trim()) return;
-    await fetch(`http://127.0.0.1:8080/api/payment-methods/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ namePaymentMethod: editName })
-    })
-    setEditingId(null); fetchPaymentMethods();
   }
 
   useEffect(() => {
     const fetchInventoryData = async () => {
       try {
-        const [resProducts, resCategories, resPaymentMethods] = await Promise.all([
+        const [resProducts, resCategories] = await Promise.all([
           fetch('http://127.0.0.1:8080/api/products'),
-          fetch('http://127.0.0.1:8080/api/categories'),
-          fetch('http://127.0.0.1:8080/api/payment-methods')
+          fetch('http://127.0.0.1:8080/api/categories')
         ])
 
         const productsData = await resProducts.json()
         const categoriesData = await resCategories.json()
-        const paymentMethodsData = await resPaymentMethods.json()
 
         setProducts(Array.isArray(productsData) ? productsData : [])
         setLiveCategories(Array.isArray(categoriesData) ? categoriesData : [])
-        setPaymentMethods(Array.isArray(paymentMethodsData) ? paymentMethodsData : [])
         setLoading(false)
       } catch (err) {
         console.error("Fallo conectando con Spring Boot en inventarios:", err)
@@ -143,12 +111,12 @@ export default function InventoryPage() {
             </Link>
           </div>
           <div className="d-flex align-items-center">
-            {/* 🟢 BOTÓN DE GESTIÓN AÑADIDO */}
+            {/* 🟢 BOTÓN DE VISTA */}
             <button 
               className="btn btn-outline-secondary btn-sm me-3" 
               onClick={() => { fetchPaymentMethods(); setShowPaymentModal(true); }}
             >
-              <i className="bi bi-credit-card-2-front me-1"></i> Manage Payments
+              <i className="bi bi-credit-card-2-front me-1"></i> Payment Methods
             </button>
             <span className="badge fs-6 px-3 py-2" style={{ backgroundColor: '#6f42c1' }}>
               <i className="bi bi-clipboard-data-fill me-2"></i>Inventory Management
@@ -319,7 +287,6 @@ export default function InventoryPage() {
                               {stockVal} units
                             </span>
                           </td>
-                          {/* 🟢 PRECIO FORMATEADO */}
                           <td className="text-end fw-semibold text-primary">
                             {formatCurrency(product.sellingValueProduct || 0)}
                           </td>
@@ -334,69 +301,23 @@ export default function InventoryPage() {
               </table>
             </div>
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="card-footer bg-white border-0 py-3">
-              <div className="d-flex justify-content-between align-items-center">
-                <small className="text-muted">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
-                  {Math.min(currentPage * itemsPerPage, filteredProducts.length)} of{' '}
-                  {filteredProducts.length} products
-                </small>
-                <nav>
-                  <ul className="pagination mb-0">
-                    <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                      <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}><i className="bi bi-chevron-left"></i></button>
-                    </li>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <li key={page} className={`page-item ${currentPage === page ? 'active' : ''}`}>
-                        <button className="page-link" onClick={() => setCurrentPage(page)}>{page}</button>
-                      </li>
-                    ))}
-                    <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                      <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === totalPages}><i className="bi bi-chevron-right"></i></button>
-                    </li>
-                  </ul>
-                </nav>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* 🟢 MODAL GESTIÓN PAGOS */}
+      {/* 🟢 MODAL DE VISTA (SOLO LECTURA) */}
       {showPaymentModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Gestión de Métodos de Pago</h5>
+                <h5 className="modal-title">Métodos de Pago Disponibles</h5>
                 <button className="btn-close" onClick={() => setShowPaymentModal(false)}></button>
               </div>
               <div className="modal-body">
-                <div className="input-group mb-3">
-                  <input className="form-control" placeholder="Nombre nuevo método" value={newMethodName} onChange={(e) => setNewMethodName(e.target.value)} />
-                  <button className="btn btn-primary" onClick={handleAdd}>Agregar</button>
-                </div>
                 <ul className="list-group">
                   {paymentMethods.map(m => (
-                    <li key={m.idPaymentMethod} className="list-group-item d-flex justify-content-between align-items-center">
-                      {editingId === m.idPaymentMethod ? (
-                        <input className="form-control form-control-sm me-2" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                      ) : (
-                        <span>{m.namePaymentMethod}</span>
-                      )}
-                      <div>
-                        {editingId === m.idPaymentMethod ? (
-                          <button className="btn btn-sm btn-success me-2" onClick={() => handleUpdate(m.idPaymentMethod)}>Guardar</button>
-                        ) : (
-                          <button className="btn btn-sm btn-warning me-2" onClick={() => { setEditingId(m.idPaymentMethod); setEditName(m.namePaymentMethod); }}>Modificar</button>
-                        )}
-                        {paymentMethods.length > 1 && (
-                          <button className="btn btn-sm btn-danger" onClick={() => handleDelete(m.idPaymentMethod)}>Eliminar</button>
-                        )}
-                      </div>
+                    <li key={m.idPaymentMethod} className="list-group-item">
+                      {m.namePaymentMethod}
                     </li>
                   ))}
                 </ul>

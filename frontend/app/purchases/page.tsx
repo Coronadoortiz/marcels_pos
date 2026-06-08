@@ -26,6 +26,7 @@ export default function PurchasesPage() {
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [showAddProductModal, setShowAddProductModal] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false) // 🟢 NUEVO: Modal Verificación
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null) 
 
   const [providerForm, setProviderForm] = useState({
@@ -349,7 +350,7 @@ export default function PurchasesPage() {
                   <span className="text-muted d-block">Grand Total:</span>
                   <span className="fs-3 fw-bold text-success">{formatCurrency(purchaseTotal)}</span>
                 </div>
-                <button className="btn btn-success btn-lg" onClick={registerPurchaseOrder} disabled={!selectedSupplier || purchaseItems.length === 0}>
+                <button className="btn btn-success btn-lg" onClick={() => setShowConfirmModal(true)} disabled={!selectedSupplier || purchaseItems.length === 0}>
                   <i className="bi bi-check-all me-1"></i>Dispatch Purchase Order
                 </button>
               </div>
@@ -509,6 +510,44 @@ export default function PurchasesPage() {
               </div>
               <div className="modal-footer">
                 <button className="btn btn-success" onClick={createProduct}>Create</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🟢 MODAL: VERIFICACIÓN DE ORDEN */}
+      {showConfirmModal && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold">Verify Purchase Order</h5>
+                <button type="button" className="btn-close" onClick={() => setShowConfirmModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <p>Please review your order items before processing:</p>
+                <ul className="list-group mb-3">
+                  {purchaseItems.map((item) => (
+                    <li key={item.product.idProduct} className="list-group-item d-flex justify-content-between">
+                      {item.product.nameProduct} (x{item.quantity})
+                      <span>{formatCurrency(item.price * item.quantity)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="d-flex justify-content-between fw-bold fs-5">
+                  <span>Total:</span>
+                  <span>{formatCurrency(purchaseTotal)}</span>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowConfirmModal(false)}>Back</button>
+                <button className="btn btn-primary" onClick={() => {
+                  setShowConfirmModal(false);
+                  registerPurchaseOrder();
+                }}>
+                  Confirm Purchase
+                </button>
               </div>
             </div>
           </div>
