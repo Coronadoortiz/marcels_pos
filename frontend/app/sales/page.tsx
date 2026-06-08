@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { type Product, type CartItem } from '@/lib/data' 
+import { formatCurrency } from '@/lib/utils' // 🟢 IMPORTACIÓN DEL FORMATEADOR
 
 export default function SalesPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -63,7 +64,7 @@ export default function SalesPage() {
         idProduct: product.idProduct || 0,
         nameProduct: product.nameProduct || '',
         price: product.sellingValueProduct || 0, 
-        quantity: 1                 
+        quantity: 1                         
       }
       return [...prev, newItem]
     })
@@ -102,7 +103,7 @@ export default function SalesPage() {
 
     const saleRequest = {
       paymentMethod: {
-        idPaymentMethod: selectedPaymentMethod // 🟢 USANDO EL SELECCIONADO
+        idPaymentMethod: selectedPaymentMethod 
       },
       saleDetails: cart.map(item => ({
         amountProducts: item.quantity, 
@@ -202,7 +203,8 @@ export default function SalesPage() {
                         <div className="card-body p-2">
                           <h6 className="card-title small mb-1 text-truncate fw-bold">{product.nameProduct}</h6>
                           <p className="card-text mb-0">
-                            <span className="fw-bold text-primary">${(product.sellingValueProduct || 0).toFixed(2)}</span>
+                            {/* 🟢 PRECIO FORMATEADO EN CATÁLOGO */}
+                            <span className="fw-bold text-primary">{formatCurrency(product.sellingValueProduct || 0)}</span>
                           </p>
                           <small className="text-muted d-block">Stock: {product.stock || 0}</small>
                         </div>
@@ -244,8 +246,11 @@ export default function SalesPage() {
                       ) : (
                         cart.map((item) => (
                           <tr key={item.idProduct}>
-                            <td>{item.nameProduct}</td>
-                            <td className="text-center">${item.price.toFixed(2)}</td>
+                            <td>
+                              <div className="fw-medium">{item.nameProduct}</div>
+                            </td>
+                            {/* 🟢 PRECIO UNITARIO FORMATEADO */}
+                            <td className="text-center">{formatCurrency(item.price)}</td>
                             <td className="text-center">
                               <input
                                 type="number"
@@ -256,7 +261,10 @@ export default function SalesPage() {
                                 style={{ width: 70 }}
                               />
                             </td>
-                            <td className="text-end fw-semibold">${(item.price * item.quantity).toFixed(2)}</td>
+                            {/* 🟢 SUBTOTAL FORMATEADO */}
+                            <td className="text-end fw-semibold">
+                              {formatCurrency(item.price * item.quantity)}
+                            </td>
                             <td className="text-center">
                               <button className="btn btn-sm btn-outline-danger" onClick={() => removeFromCart(item.idProduct)}>
                                 <i className="bi bi-trash"></i>
@@ -278,8 +286,6 @@ export default function SalesPage() {
                 <h5 className="mb-0 fw-bold"><i className="bi bi-calculator me-2"></i>Order Summary</h5>
               </div>
               <div className="card-body">
-                
-                {/* 🟢 DROPDOWN INSERTADO AQUÍ */}
                 <div className="mb-3">
                   <label className="form-label text-muted">Payment Method</label>
                   <select 
@@ -302,7 +308,8 @@ export default function SalesPage() {
                 <hr />
                 <div className="d-flex justify-content-between mb-4">
                   <span className="fs-5 fw-bold">Total:</span>
-                  <span className="fs-5 fw-bold text-primary">${total.toFixed(2)}</span>
+                  {/* 🟢 TOTAL FORMATEADO */}
+                  <span className="fs-5 fw-bold text-primary">{formatCurrency(total)}</span>
                 </div>
 
                 <div className="d-grid gap-2">
@@ -344,12 +351,16 @@ export default function SalesPage() {
                       <tr key={item.idProduct}>
                         <td>{item.nameProduct}</td>
                         <td className="text-center">{item.quantity}</td>
-                        <td className="text-end">${(item.price * item.quantity).toFixed(2)}</td>
+                        {/* 🟢 TOTALES EN FACTURA FORMATEADOS */}
+                        <td className="text-end">{formatCurrency(item.price * item.quantity)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="table-primary"><td colSpan={2} className="text-end fw-bold">Total:</td><td className="text-end fw-bold">${invoiceData.total.toFixed(2)}</td></tr>
+                    <tr className="table-primary">
+                      <td colSpan={2} className="text-end fw-bold">Total:</td>
+                      <td className="text-end fw-bold">{formatCurrency(invoiceData.total)}</td>
+                    </tr>
                   </tfoot>
                 </table>
               </div>

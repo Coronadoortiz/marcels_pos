@@ -2,18 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { formatCurrency } from '@/lib/utils' // 🟢 IMPORTACIÓN DEL FORMATEADOR
 
 export default function ReportsPage() {
   const [sales, setSales] = useState<any[]>([])
   const [report, setReport] = useState({ totalSales: 0, totalPurchases: 0, netProfit: 0, totalSalesCount: 0, totalPurchasesCount: 0 })
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]) // 🟢 NUEVO: Estado para los métodos de pago de la BD
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([])
   const [filterDate, setFilterDate] = useState('')
   const [minPrice, setMinPrice] = useState(0)
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('All') // Filtrará por ID por seguridad
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('All')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Cargamos Ventas, Reporte Global y opcionalmente Métodos de Pago
     Promise.all([
       fetch('http://127.0.0.1:8080/api/sales/all').then(res => res.json()),
       fetch('http://127.0.0.1:8080/api/finance/report').then(res => res.json())
@@ -21,8 +21,6 @@ export default function ReportsPage() {
       setSales(salesData)
       setReport(reportData)
       
-      // 🟢 EXTRAE MÉTODOS DE PAGO ÚNICOS: Para no crear otro endpoint en Java, 
-      // mapeamos los métodos de pago que ya vienen dentro de las mismas ventas. ¡Ultra eficiente!
       const uniqueMethods: any[] = [];
       const map = new Map();
       salesData.forEach((sale: any) => {
@@ -40,7 +38,6 @@ export default function ReportsPage() {
     })
   }, [])
 
-  // FUNCIÓN EXTRACTORA UNIVERSAL DE FECHAS (LocalDateTime de Java)
   const parseInvoiceDate = (dateRaw: any): { display: string; iso: string } => {
     if (!dateRaw) return { display: 'N/A', iso: '' };
     try {
@@ -64,7 +61,6 @@ export default function ReportsPage() {
     }
   };
 
-  // Lógica de filtrado reactiva
   const filteredSales = sales.filter(s => {
     const total = s.saleDetails?.reduce((sum: number, d: any) => sum + (d.amountProducts * (d.product?.sellingValueProduct || 0)), 0) || 0
     const dateMeta = parseInvoiceDate(s.dateSale);
@@ -72,7 +68,6 @@ export default function ReportsPage() {
     const matchDate = filterDate ? dateMeta.iso === filterDate : true
     const matchPrice = total >= minPrice
     
-    // 🟢 FILTRADO DINÁMICO: Compara por el id del método seleccionado
     const matchPayment = selectedPaymentMethodId === 'All' 
       ? true 
       : s.paymentMethod?.idPaymentMethod === Number(selectedPaymentMethodId);
@@ -91,9 +86,10 @@ export default function ReportsPage() {
 
       {/* KPI Cards */}
       <div className="row g-3 mb-4">
-        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Ingresos Totales</p><h3>${report.totalSales.toLocaleString()}</h3></div></div>
-        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Egresos (Compras)</p><h3>${report.totalPurchases.toLocaleString()}</h3></div></div>
-        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Utilidad Neta</p><h3 className="text-success">${report.netProfit.toLocaleString()}</h3></div></div>
+        {/* 🟢 VALORES FORMATEADOS CON formatCurrency */}
+        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Ingresos Totales</p><h3>{formatCurrency(report.totalSales)}</h3></div></div>
+        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Egresos (Compras)</p><h3>{formatCurrency(report.totalPurchases)}</h3></div></div>
+        <div className="col-md-4"><div className="card p-3 shadow-sm border-0"><p className="text-muted small">Utilidad Neta</p><h3 className="text-success">{formatCurrency(report.netProfit)}</h3></div></div>
       </div>
 
       {/* Panel de Filtros */}
@@ -109,7 +105,6 @@ export default function ReportsPage() {
           </div>
           <div className="col-md-3">
             <label className="small fw-bold">Método de Pago</label>
-            {/* 🟢 DROPDOWNLIST DINÁMICO COMPLETAMENTE CORREGIDO */}
             <select 
               className="form-select" 
               value={selectedPaymentMethodId} 
@@ -140,13 +135,15 @@ export default function ReportsPage() {
           <tbody>
             {filteredSales.map(s => {
               const dateMeta = parseInvoiceDate(s.dateSale);
+              const totalVenta = s.saleDetails?.reduce((sum: number, d: any) => sum + (d.amountProducts * (d.product?.sellingValueProduct || 0)), 0) || 0;
               return (
                 <tr key={s.idSale}>
                   <td>#{s.idSale}</td>
                   <td className="text-dark fw-medium">{dateMeta.display}</td>
                   <td>{s.paymentMethod?.namePaymentMethod || 'N/A'}</td>
+                  {/* 🟢 TOTAL DE FILA FORMATEADO */}
                   <td className="fw-bold text-primary">
-                    ${s.saleDetails?.reduce((sum: number, d: any) => sum + (d.amountProducts * (d.product?.sellingValueProduct || 0)), 0).toFixed(2)}
+                    {formatCurrency(totalVenta)}
                   </td>
                 </tr>
               )

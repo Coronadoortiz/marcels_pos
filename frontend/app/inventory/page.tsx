@@ -3,14 +3,14 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { type Product } from '@/lib/data' 
-import { cn, formatCurrency } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [liveCategories, setLiveCategories] = useState<any[]>([]) 
   const [loading, setLoading] = useState(true)
   
-  // 🟢 ESTADOS AÑADIDOS PARA EL MODAL (NUEVOS)
+  // 🟢 ESTADOS AÑADIDOS PARA EL MODAL
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
   const [newMethodName, setNewMethodName] = useState('')
@@ -22,7 +22,7 @@ export default function InventoryPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
-  // 🟢 FUNCIONES CRUD PARA EL MODAL (NUEVAS)
+  // Función para cargar métodos de pago
   const fetchPaymentMethods = async () => {
     try {
       const res = await fetch('http://127.0.0.1:8080/api/payment-methods')
@@ -60,16 +60,19 @@ export default function InventoryPage() {
   useEffect(() => {
     const fetchInventoryData = async () => {
       try {
-        const [resProducts, resCategories] = await Promise.all([
+        const [resProducts, resCategories, resPaymentMethods] = await Promise.all([
           fetch('http://127.0.0.1:8080/api/products'),
-          fetch('http://127.0.0.1:8080/api/categories')
+          fetch('http://127.0.0.1:8080/api/categories'),
+          fetch('http://127.0.0.1:8080/api/payment-methods')
         ])
 
         const productsData = await resProducts.json()
         const categoriesData = await resCategories.json()
+        const paymentMethodsData = await resPaymentMethods.json()
 
         setProducts(Array.isArray(productsData) ? productsData : [])
         setLiveCategories(Array.isArray(categoriesData) ? categoriesData : [])
+        setPaymentMethods(Array.isArray(paymentMethodsData) ? paymentMethodsData : [])
         setLoading(false)
       } catch (err) {
         console.error("Fallo conectando con Spring Boot en inventarios:", err)
@@ -81,6 +84,7 @@ export default function InventoryPage() {
 
     fetchInventoryData()
   }, [])
+  
 
   const filteredProducts = products.filter((product) => {
     if (!product) return false;
@@ -139,7 +143,7 @@ export default function InventoryPage() {
             </Link>
           </div>
           <div className="d-flex align-items-center">
-            {/* 🟢 BOTÓN MODIFICADO PARA ABRIR MODAL */}
+            {/* 🟢 BOTÓN DE GESTIÓN AÑADIDO */}
             <button 
               className="btn btn-outline-secondary btn-sm me-3" 
               onClick={() => { fetchPaymentMethods(); setShowPaymentModal(true); }}
@@ -315,8 +319,9 @@ export default function InventoryPage() {
                               {stockVal} units
                             </span>
                           </td>
+                          {/* 🟢 PRECIO FORMATEADO */}
                           <td className="text-end fw-semibold text-primary">
-                            ${(product.sellingValueProduct || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatCurrency(product.sellingValueProduct || 0)}
                           </td>
                           <td className="text-center">
                             <span className={`badge ${status.class}`}>{status.label}</span>

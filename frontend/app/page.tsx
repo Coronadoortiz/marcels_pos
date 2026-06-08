@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import { formatCurrency } from '@/lib/utils' // 🟢 IMPORTACIÓN AÑADIDA
 
 const modules = [
   {
@@ -123,8 +124,9 @@ export default function Dashboard() {
             <span className="fw-bold">Marcel's Tecnologia celular y fotografia</span>
           </Link>
           <div className="d-flex align-items-center">
+            {/* 🟢 NET GAIN FORMATEADO */}
             <span className="badge bg-dark px-3 py-2 fs-6 me-3">
-              <i className="bi bi-cash-stack me-2 text-warning"></i>Net Gain: ${netProfit.toFixed(2)}
+              <i className="bi bi-cash-stack me-2 text-warning"></i>Net Gain: {formatCurrency(netProfit)}
             </span>
           </div>
         </div>
@@ -146,7 +148,7 @@ export default function Dashboard() {
                 <div className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#e7f1ff', color: '#0d6efd' }}>
                   <i className="bi bi-cash-coin fs-4"></i>
                 </div>
-                <h3 className="fw-bold mb-1">${totalSalesRevenue.toFixed(2)}</h3>
+                <h3 className="fw-bold mb-1">{formatCurrency(totalSalesRevenue)}</h3>
                 <p className="text-muted small mb-0">Total Sales Gross Revenue</p>
               </div>
             </div>
@@ -160,7 +162,7 @@ export default function Dashboard() {
                   <i className="bi bi-graph-up text-danger fs-4"></i>
                 </div>
                 <h3 className={`fw-bold mb-1 ${netProfit >= 0 ? 'text-success' : 'text-danger'}`}>
-                  ${netProfit.toFixed(2)}
+                  {formatCurrency(netProfit)}
                 </h3>
                 <p className="text-muted small mb-0">Net Profits Balance</p>
               </div>
@@ -252,7 +254,8 @@ export default function Dashboard() {
                                   {details.map((d: any) => d.product?.nameProduct).join(', ') || 'N/A'}
                                 </div>
                               </td>
-                              <td className="text-end fw-bold text-dark">${amountPaid.toFixed(2)}</td>
+                              {/* 🟢 MONTO PAGADO FORMATEADO */}
+                              <td className="text-end fw-bold text-dark">{formatCurrency(amountPaid)}</td>
                             </tr>
                           )
                         })
@@ -307,7 +310,7 @@ export default function Dashboard() {
 
       <footer className="bg-white border-top py-4 mt-auto">
         <div className="container text-center text-muted">
-          <p className="mb-0">Marcels Tecnologia celular y fotografía</p>
+          <p className="mb-0">Marcel's Tecnologia celular y fotografía</p>
         </div>
       </footer>
     </div>
