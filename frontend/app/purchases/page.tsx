@@ -26,7 +26,8 @@ export default function PurchasesPage() {
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [showAddProductModal, setShowAddProductModal] = useState(false)
-  const [showConfirmModal, setShowConfirmModal] = useState(false) // 🟢 NUEVO: Modal Verificación
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [selectedDetail, setSelectedDetail] = useState<any | null>(null) // 🟢 NUEVO: Estado detalle
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null) 
 
   const [providerForm, setProviderForm] = useState({
@@ -380,7 +381,17 @@ export default function PurchasesPage() {
                           <tr><td colSpan={3} className="text-center py-4 text-muted">No historic purchases saved.</td></tr>
                         ) : (
                           purchases.map((p: any) => (
-                            <tr key={p.idPurchase}>
+                          <tr 
+                            key={p.idPurchase} 
+                            onClick={() => {
+                              // 🟢 AQUÍ ESTÁ EL CAMBIO CRÍTICO:
+                              // Usamos 'purchaseProductPrice' que es el campo que confirmó tu consola
+                              const total = p.purchaseDetails?.reduce((sum: number, d: any) => 
+                                sum + ((d.purchaseProductPrice || 0) * (d.amountPurchased || 0)), 0) || 0;
+                              
+                              setSelectedDetail({ ...p, total });
+                            }} 
+                            style={{ cursor: 'pointer' }}>
                               <td><span className="badge bg-light text-dark fw-bold">#ORD-{p.idPurchase}</span></td>
                               <td>
                                 <div className="fw-bold small">{p.provider?.nameProvider}</div>
@@ -516,7 +527,7 @@ export default function PurchasesPage() {
         </div>
       )}
 
-      {/* 🟢 MODAL: VERIFICACIÓN DE ORDEN */}
+      {/* MODAL: VERIFICACIÓN DE ORDEN */}
       {showConfirmModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-centered">
@@ -526,6 +537,7 @@ export default function PurchasesPage() {
                 <button type="button" className="btn-close" onClick={() => setShowConfirmModal(false)}></button>
               </div>
               <div className="modal-body">
+                <p className="mb-2"><strong>Supplier:</strong> {selectedSupplier?.nameProvider}</p>
                 <p>Please review your order items before processing:</p>
                 <ul className="list-group mb-3">
                   {purchaseItems.map((item) => (
@@ -553,6 +565,51 @@ export default function PurchasesPage() {
           </div>
         </div>
       )}
-    </div>
+{/* 🟢 MODAL: DETALLES DE COMPRA (CORREGIDO) */}
+      {selectedDetail && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold">Purchase Order Details #{selectedDetail.idPurchase}</h5>
+                <button type="button" className="btn-close" onClick={() => setSelectedDetail(null)}></button>
+              </div>
+              <div className="modal-body">
+                <p><strong>Supplier:</strong> {selectedDetail.provider?.nameProvider}</p>
+                <table className="table table-striped">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th className="text-center">Quantity</th>
+                      <th className="text-end">Unit Price</th>
+                      <th className="text-end">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedDetail.purchaseDetails?.map((d: any, i: number) => {
+                      // 🟢 USAMOS PURCHASEPRODUCTPRICE QUE ES EL CAMPO QUE VIENE EN TU API
+                      const precio = d.purchaseProductPrice || 0;
+                      const cantidad = d.amountPurchased || 0;
+                      return (
+                        <tr key={i}>
+                          <td>{d.product?.nameProduct}</td>
+                          <td className="text-center">{cantidad}</td>
+                          <td className="text-end">{formatCurrency(precio)}</td>
+                          <td className="text-end">{formatCurrency(precio * cantidad)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <div className="text-end fs-5 fw-bold">Total: {formatCurrency(selectedDetail.total || 0)}</div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-primary" onClick={() => setSelectedDetail(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+         </div>
   )
 }
