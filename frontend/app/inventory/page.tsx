@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { type Product } from '@/lib/data' 
+import { cn, formatCurrency } from '@/lib/utils'
 
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([])
