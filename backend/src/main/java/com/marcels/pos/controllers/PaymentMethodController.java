@@ -36,9 +36,5 @@ public class PaymentMethodController {
         return ResponseEntity.ok(paymentMethodService.update(id, paymentMethod));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id) {
-        paymentMethodService.delete(id);
-        return ResponseEntity.noContent().build();
-    }
+
 }

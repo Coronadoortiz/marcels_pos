@@ -42,10 +42,9 @@ export default function InventoryPage() {
   }
 
   const handleDelete = async (id: number) => {
-    try {
-        await fetch(`http://127.0.0.1:8080/api/payment-methods/${id}`, { method: 'DELETE' });
-        fetchPaymentMethods();
-    } catch (err) { console.error("Error al desactivar método", err); }
+    if (paymentMethods.length <= 1) return alert("Debe haber al menos un método de pago.");
+    await fetch(`http://127.0.0.1:8080/api/payment-methods/${id}`, { method: 'DELETE' });
+    fetchPaymentMethods();
   }
 
   const handleUpdate = async (id: number) => {

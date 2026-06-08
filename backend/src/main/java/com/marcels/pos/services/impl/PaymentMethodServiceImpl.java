@@ -22,6 +22,7 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     public List<PaymentMethod> getAll() {
         return repository.findAll();
     }
+    
 
     @Override
     @Transactional
@@ -32,19 +33,20 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     @Override
     @Transactional
     public PaymentMethod update(Integer id, PaymentMethod paymentMethod) {
-        PaymentMethod existing = getById(id);
-        existing.setNamePaymentMethod(paymentMethod.getNamePaymentMethod());
-        return repository.save(existing);
+        PaymentMethod existing = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Método de pago no encontrado"));
+        paymentMethod.setIdPaymentMethod(existing.getIdPaymentMethod());
+        return repository.save(paymentMethod);
     }
 
     @Override
     @Transactional
     public void delete(Integer id) {
-    PaymentMethod method = repository.findById(id)
-        .orElseThrow(() -> new RuntimeException("No encontrado"));
-    method.setActive(false); // Borrado lógico
-    repository.save(method);
-}
+        if (!repository.existsById(id)) {
+            throw new RuntimeException("Método de pago no encontrado");
+        }
+        repository.deleteById(id);
+    }
 
     @Override
     public PaymentMethod getById(Integer id) {
