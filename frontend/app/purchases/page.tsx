@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { type Product, type Supplier } from '@/lib/data'
+import { formatCurrency } from '@/lib/utils'
 
 interface PurchaseItem {
   product: Product
@@ -25,6 +26,8 @@ export default function PurchasesPage() {
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [showAddProductModal, setShowAddProductModal] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [selectedDetail, setSelectedDetail] = useState<any | null>(null) // 🟢 NUEVO: Estado detalle
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null) 
 
   const [providerForm, setProviderForm] = useState({
@@ -34,7 +37,6 @@ export default function PurchasesPage() {
     email: '',
   })
 
-  // 🟢 SIMPLIFICADO: Solo los campos reales que conserva tu entidad Product
   const [newProduct, setNewProduct] = useState({
     nameProduct: '',
     idCategorySelected: '', 
@@ -156,7 +158,6 @@ export default function PurchasesPage() {
 
   const purchaseTotal = purchaseItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
-  // 🟢 SIMPLIFICADO: Payload estricto sin sku, image ni purchasePrice
   const createProduct = async () => {
     if (!newProduct.nameProduct || !newProduct.idCategorySelected) {
       alert('Please fill in required fields')
@@ -330,19 +331,11 @@ export default function PurchasesPage() {
                       ) : (
                         purchaseItems.map((item) => (
                           <tr key={item.product.idProduct}>
-                            <td>
-                              <div className="fw-medium">{item.product.nameProduct}</div>
-                            </td>
-                            <td>
-                              <input type="number" className="form-control form-control-sm text-center mx-auto" value={item.quantity} min={1} onChange={(e) => item.product.idProduct && updatePurchaseItem(item.product.idProduct, 'quantity', parseInt(e.target.value) || 1)} style={{ width: 80 }} />
-                            </td>
-                            <td>
-                              <input type="number" className="form-control form-control-sm text-center mx-auto" value={item.price} min={0} step="0.01" onChange={(e) => item.product.idProduct && updatePurchaseItem(item.product.idProduct, 'price', parseFloat(e.target.value) || 0)} style={{ width: 100 }} />
-                            </td>
-                            <td className="text-end fw-bold">${(item.price * item.quantity).toFixed(2)}</td>
-                            <td className="text-center">
-                              <button className="btn btn-sm btn-outline-danger" onClick={() => item.product.idProduct && removePurchaseItem(item.product.idProduct)}><i className="bi bi-trash"></i></button>
-                            </td>
+                            <td><div className="fw-medium">{item.product.nameProduct}</div></td>
+                            <td><input type="number" className="form-control form-control-sm text-center mx-auto" value={item.quantity} min={1} onChange={(e) => item.product.idProduct && updatePurchaseItem(item.product.idProduct, 'quantity', parseInt(e.target.value) || 1)} style={{ width: 80 }} /></td>
+                            <td><input type="number" className="form-control form-control-sm text-center mx-auto" value={item.price} min={0} step="0.01" onChange={(e) => item.product.idProduct && updatePurchaseItem(item.product.idProduct, 'price', parseFloat(e.target.value) || 0)} style={{ width: 100 }} /></td>
+                            <td className="text-end fw-bold">{formatCurrency(item.price * item.quantity)}</td>
+                            <td className="text-center"><button className="btn btn-sm btn-outline-danger" onClick={() => item.product.idProduct && removePurchaseItem(item.product.idProduct)}><i className="bi bi-trash"></i></button></td>
                           </tr>
                         ))
                       )}
@@ -356,9 +349,9 @@ export default function PurchasesPage() {
               <div className="card-body d-flex justify-content-between align-items-center">
                 <div>
                   <span className="text-muted d-block">Grand Total:</span>
-                  <span className="fs-3 fw-bold text-success">${purchaseTotal.toFixed(2)}</span>
+                  <span className="fs-3 fw-bold text-success">{formatCurrency(purchaseTotal)}</span>
                 </div>
-                <button className="btn btn-success btn-lg" onClick={registerPurchaseOrder} disabled={!selectedSupplier || purchaseItems.length === 0}>
+                <button className="btn btn-success btn-lg" onClick={() => setShowConfirmModal(true)} disabled={!selectedSupplier || purchaseItems.length === 0}>
                   <i className="bi bi-check-all me-1"></i>Dispatch Purchase Order
                 </button>
               </div>
@@ -380,26 +373,34 @@ export default function PurchasesPage() {
                         <tr>
                           <th>Order ID</th>
                           <th>Supplier Target</th>
-                          <th>Disbursement</th>
+                          <th className="text-end">Disbursement</th>
                         </tr>
                       </thead>
                       <tbody>
                         {purchases.length === 0 ? (
-                          <tr><td colSpan={3} className="text-center py-4 text-muted">No historic purchases saved in Neon.</td></tr>
+                          <tr><td colSpan={3} className="text-center py-4 text-muted">No historic purchases saved.</td></tr>
                         ) : (
                           purchases.map((p: any) => (
-                            <tr key={p.idPurchase}>
+                          <tr 
+                            key={p.idPurchase} 
+                            onClick={() => {
+                              // 🟢 AQUÍ ESTÁ EL CAMBIO CRÍTICO:
+                              // Usamos 'purchaseProductPrice' que es el campo que confirmó tu consola
+                              const total = p.purchaseDetails?.reduce((sum: number, d: any) => 
+                                sum + ((d.purchaseProductPrice || 0) * (d.amountPurchased || 0)), 0) || 0;
+                              
+                              setSelectedDetail({ ...p, total });
+                            }} 
+                            style={{ cursor: 'pointer' }}>
                               <td><span className="badge bg-light text-dark fw-bold">#ORD-{p.idPurchase}</span></td>
                               <td>
                                 <div className="fw-bold small">{p.provider?.nameProvider}</div>
                                 {p.purchaseDetails?.map((d: any, idx: number) => (
-                                  <small key={idx} className="d-block text-muted text-truncate" style={{ maxWidth: 280 }}>
-                                    • {d.product?.nameProduct} ({d.amountPurchased} unts)
-                                  </small>
+                                  <small key={idx} className="d-block text-muted">• {d.product?.nameProduct} ({d.amountPurchased} units)</small>
                                 ))}
                               </td>
                               <td className="text-end fw-bold text-success">
-                                ${(p.purchaseDetails?.reduce((sum: number, d: any) => sum + (d.amountPurchased * (d.purchasePriceUnit || d.purchaseProductPrice || 0)), 0) || 0).toFixed(2)}
+                                {formatCurrency(p.purchaseDetails?.reduce((sum: number, d: any) => sum + (d.amountPurchased * (d.purchasePriceUnit || d.purchaseProductPrice || 0)), 0) || 0)}
                               </td>
                             </tr>
                           ))
@@ -433,12 +434,8 @@ export default function PurchasesPage() {
                               <small className="text-muted font-monospace">{prov.nitProvider}</small>
                             </td>
                             <td className="text-center">
-                              <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openEditSupplierModal(prov)}>
-                                <i className="bi bi-pencil"></i>
-                              </button>
-                              <button className="btn btn-sm btn-outline-danger" onClick={() => prov.idProvider && handleSupplierDelete(prov.idProvider)}>
-                                <i className="bi bi-trash"></i>
-                              </button>
+                              <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openEditSupplierModal(prov)}><i className="bi bi-pencil"></i></button>
+                              <button className="btn btn-sm btn-outline-danger" onClick={() => prov.idProvider && handleSupplierDelete(prov.idProvider)}><i className="bi bi-trash"></i></button>
                             </td>
                           </tr>
                         ))}
@@ -458,9 +455,7 @@ export default function PurchasesPage() {
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title fw-bold">
-                  {editingSupplier ? '✏️ Edit Supplier Metadata' : '🎉 Create New Supplier'}
-                </h5>
+                <h5 className="modal-title fw-bold">{editingSupplier ? '✏️ Edit Supplier Metadata' : '🎉 Create New Supplier'}</h5>
                 <button type="button" className="btn-close" onClick={() => setShowSupplierModal(false)}></button>
               </div>
               <div className="modal-body">
@@ -471,14 +466,6 @@ export default function PurchasesPage() {
                 <div className="mb-3">
                   <label className="form-label fw-medium">NIT / Tax ID *</label>
                   <input type="text" className="form-control" value={providerForm.nitProvider} onChange={(e) => setProviderForm({ ...providerForm, nitProvider: e.target.value })} />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label fw-medium">Phone Number</label>
-                  <input type="text" className="form-control" value={providerForm.phoneNumber} onChange={(e) => setProviderForm({ ...providerForm, phoneNumber: e.target.value })} />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label fw-medium">Email Address</label>
-                  <input type="email" className="form-control" value={providerForm.email} onChange={(e) => setProviderForm({ ...providerForm, email: e.target.value })} />
                 </div>
               </div>
               <div className="modal-footer">
@@ -496,17 +483,15 @@ export default function PurchasesPage() {
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title fw-bold"><i className="bi bi-box me-2 text-success"></i>Add Product to Purchase</h5>
+                <h5 className="modal-title fw-bold">Add Product</h5>
                 <button type="button" className="btn-close" onClick={() => setShowAddProductModal(false)}></button>
               </div>
               <div className="modal-body">
                 <div className="row g-3">
-                  {availableProducts.map((product) => (
-                    <div key={product.idProduct} className="col-md-4">
-                      <div className="card product-card h-100" style={{ cursor: 'pointer' }} onClick={() => addProductToPurchase(product)}>
-                        <div className="card-body p-2">
-                          <h6 className="card-title small mb-1 fw-bold">{product.nameProduct}</h6>
-                        </div>
+                  {availableProducts.map((p) => (
+                    <div key={p.idProduct} className="col-md-4">
+                      <div className="card h-100" style={{ cursor: 'pointer' }} onClick={() => addProductToPurchase(p)}>
+                        <div className="card-body p-2"><h6 className="fw-bold small">{p.nameProduct}</h6></div>
                       </div>
                     </div>
                   ))}
@@ -517,40 +502,114 @@ export default function PurchasesPage() {
         </div>
       )}
 
-      {/* MODAL: CREAR NUEVO PRODUCTO (MINIMALISTA) */}
+      {/* MODAL: CREAR PRODUCTO */}
       {showProductModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title fw-bold"><i className="bi bi-plus-circle me-2 text-success"></i>Create New Product</h5>
+                <h5 className="modal-title fw-bold">Create New Product</h5>
                 <button type="button" className="btn-close" onClick={() => setShowProductModal(false)}></button>
               </div>
               <div className="modal-body">
-                <div className="mb-3">
-                  <label className="form-label fw-medium">Product Name *</label>
-                  <input type="text" className="form-control" value={newProduct.nameProduct} onChange={(e) => setNewProduct({ ...newProduct, nameProduct: e.target.value })} />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label fw-medium">Category *</label>
-                  <select className="form-select" value={newProduct.idCategorySelected} onChange={(e) => setNewProduct({ ...newProduct, idCategorySelected: e.target.value })}>
-                    <option value="">-- Select Category --</option>
-                    {liveCategories.map((cat) => <option key={cat.idCategory} value={cat.idCategory}>{cat.nameCategory}</option>)}
-                  </select>
-                </div>
-                <div className="mb-3">
-                  <label className="form-label fw-medium">Sale Price *</label>
-                  <input type="number" className="form-control" value={newProduct.sellingValueProduct} onChange={(e) => setNewProduct({ ...newProduct, sellingValueProduct: parseFloat(e.target.value) || 0 })} />
-                </div>
+                <input className="form-control mb-3" placeholder="Name" onChange={e => setNewProduct({...newProduct, nameProduct: e.target.value})} />
+                <select className="form-select mb-3" onChange={e => setNewProduct({...newProduct, idCategorySelected: e.target.value})}>
+                  <option>Select Category</option>
+                  {liveCategories.map(cat => <option key={cat.idCategory} value={cat.idCategory}>{cat.nameCategory}</option>)}
+                </select>
+                <input className="form-control" type="number" placeholder="Price" onChange={e => setNewProduct({...newProduct, sellingValueProduct: parseFloat(e.target.value)})} />
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowProductModal(false)}>Cancel</button>
-                <button type="button" className="btn btn-success" onClick={createProduct}>Create Product</button>
+                <button className="btn btn-success" onClick={createProduct}>Create</button>
               </div>
             </div>
           </div>
         </div>
       )}
-    </div>
+
+      {/* MODAL: VERIFICACIÓN DE ORDEN */}
+      {showConfirmModal && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold">Verify Purchase Order</h5>
+                <button type="button" className="btn-close" onClick={() => setShowConfirmModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <p className="mb-2"><strong>Supplier:</strong> {selectedSupplier?.nameProvider}</p>
+                <p>Please review your order items before processing:</p>
+                <ul className="list-group mb-3">
+                  {purchaseItems.map((item) => (
+                    <li key={item.product.idProduct} className="list-group-item d-flex justify-content-between">
+                      {item.product.nameProduct} (x{item.quantity})
+                      <span>{formatCurrency(item.price * item.quantity)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="d-flex justify-content-between fw-bold fs-5">
+                  <span>Total:</span>
+                  <span>{formatCurrency(purchaseTotal)}</span>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowConfirmModal(false)}>Back</button>
+                <button className="btn btn-primary" onClick={() => {
+                  setShowConfirmModal(false);
+                  registerPurchaseOrder();
+                }}>
+                  Confirm Purchase
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+{/* 🟢 MODAL: DETALLES DE COMPRA (CORREGIDO) */}
+      {selectedDetail && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold">Purchase Order Details #{selectedDetail.idPurchase}</h5>
+                <button type="button" className="btn-close" onClick={() => setSelectedDetail(null)}></button>
+              </div>
+              <div className="modal-body">
+                <p><strong>Supplier:</strong> {selectedDetail.provider?.nameProvider}</p>
+                <table className="table table-striped">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th className="text-center">Quantity</th>
+                      <th className="text-end">Unit Price</th>
+                      <th className="text-end">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedDetail.purchaseDetails?.map((d: any, i: number) => {
+                      // 🟢 USAMOS PURCHASEPRODUCTPRICE QUE ES EL CAMPO QUE VIENE EN TU API
+                      const precio = d.purchaseProductPrice || 0;
+                      const cantidad = d.amountPurchased || 0;
+                      return (
+                        <tr key={i}>
+                          <td>{d.product?.nameProduct}</td>
+                          <td className="text-center">{cantidad}</td>
+                          <td className="text-end">{formatCurrency(precio)}</td>
+                          <td className="text-end">{formatCurrency(precio * cantidad)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <div className="text-end fs-5 fw-bold">Total: {formatCurrency(selectedDetail.total || 0)}</div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-primary" onClick={() => setSelectedDetail(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+         </div>
   )
 }

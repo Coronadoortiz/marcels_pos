@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import { formatCurrency } from '@/lib/utils'
 
 const modules = [
   {
@@ -49,8 +50,9 @@ const modules = [
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
   const [sales, setSales] = useState<any[]>([])
-  const [purchases, setPurchases] = useState<any[]>([]) // 🟢 NUEVO: Estado para cargar histórico de compras
+  const [purchases, setPurchases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedDetail, setSelectedDetail] = useState<any | null>(null) // 🟢 NUEVO: Estado detalle
 
   useEffect(() => {
     const fetchDashboardMetrics = async () => {
@@ -58,7 +60,7 @@ export default function Dashboard() {
         const [resProducts, resSales, resPurchases] = await Promise.all([
           fetch('http://127.0.0.1:8080/api/products'),
           fetch('http://127.0.0.1:8080/api/sales/all'),
-          fetch('http://127.0.0.1:8080/api/purchases') // 🟢 Trae las compras guardadas en Neon
+          fetch('http://127.0.0.1:8080/api/purchases')
         ])
 
         setProducts(await resProducts.json())
@@ -74,32 +76,19 @@ export default function Dashboard() {
     fetchDashboardMetrics()
   }, [])
 
-  // =========================================================
-  // 🟢 BALANCES FINANCIEROS Y DE INVENTARIO EN TIEMPO REAL
-  // =========================================================
-  
-  // 1. FINANZAS: Ingresos brutos generados por las ventas relacionales
   const totalSalesRevenue = (Array.isArray(sales) ? sales : []).reduce((sum, sale) => {
     const details = sale.saleDetails || [];
     return sum + details.reduce((s: number, d: any) => s + ((d.product?.sellingValueProduct || 0) * (d.amountProducts || 0)), 0);
   }, 0);
 
-  // 2. FINANZAS: Costos totales por reabastecimiento (Egresos de Compras)
   const totalPurchasesCost = (Array.isArray(purchases) ? purchases : []).reduce((sum, purchase) => {
     const details = purchase.purchaseDetails || [];
-    return sum + details.reduce((s: number, d: any) => s + ((d.purchasePriceUnit || d.purchaseProductPrice || 0) * (d.amountPurchased || 0)), 0);
+    return sum + details.reduce((s: number, d: any) => s + ((d.purchaseProductPrice || 0) * (d.amountPurchased || 0)), 0);
   }, 0);
 
-  // 3. FINANZAS: Utilidad Neta real (Ganancia = Ventas - Compras)
   const netProfit = totalSalesRevenue - totalPurchasesCost;
-
-  // 4. INVENTARIO: Conteo total de unidades físicas en tbl_stocks vía tu ProductServiceImpl
   const totalStockUnits = (Array.isArray(products) ? products : []).reduce((sum, p) => sum + (p.stock || 0), 0);
-
-  // 5. INVENTARIO: Alertas de stock crítico (Productos con stock <= 5)
   const lowStockItems = (Array.isArray(products) ? products : []).filter(p => (p.stock ?? 0) <= 5);
-
-  // Historial resumido para las tablas inferiores
   const recentSales = (Array.isArray(sales) ? [...sales] : []).reverse().slice(0, 4);
 
   if (loading) {
@@ -115,7 +104,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-vh-100" style={{ backgroundColor: '#f8f9fa' }}>
-      {/* Navbar */}
       <nav className="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
         <div className="container">
           <Link href="/" className="navbar-brand d-flex align-items-center">
@@ -124,63 +112,55 @@ export default function Dashboard() {
           </Link>
           <div className="d-flex align-items-center">
             <span className="badge bg-dark px-3 py-2 fs-6 me-3">
-              <i className="bi bi-cash-stack me-2 text-warning"></i>Net Gain: ${netProfit.toFixed(2)}
+              <i className="bi bi-cash-stack me-2 text-warning"></i>Net Gain: {formatCurrency(netProfit)}
             </span>
           </div>
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="container py-5">
         <div className="text-center mb-5">
           <h1 className="display-5 fw-bold text-dark mb-2">Marcel's</h1>
           <p className="lead text-muted">Tecnologia celular y fotografia</p>
         </div>
 
-        {/* 🟢 TARJETAS DE INDICADORES (KPIs RECIÉN RESTAURADOS) */}
         <div className="row g-4 mb-5">
-          {/* Tarjeta Finanzas: Ingresos */}
           <div className="col-6 col-lg-3">
             <div className="card h-100 border-0 shadow-sm">
               <div className="card-body text-center">
                 <div className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#e7f1ff', color: '#0d6efd' }}>
                   <i className="bi bi-cash-coin fs-4"></i>
                 </div>
-                <h3 className="fw-bold mb-1">${totalSalesRevenue.toFixed(2)}</h3>
+                <h3 className="fw-bold mb-1">{formatCurrency(totalSalesRevenue)}</h3>
                 <p className="text-muted small mb-0">Total Sales Gross Revenue</p>
               </div>
             </div>
           </div>
           
-          {/* Tarjeta Finanzas: Utilidad Real */}
           <div className="col-6 col-lg-3">
             <div className="card h-100 border-0 shadow-sm">
               <div className="card-body text-center">
                 <div className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#f8d7da', color: '#dc3545' }}>
                   <i className="bi bi-graph-up text-danger fs-4"></i>
                 </div>
-                <h3 className={`fw-bold mb-1 ${netProfit >= 0 ? 'text-success' : 'text-danger'}`}>
-                  ${netProfit.toFixed(2)}
-                </h3>
+                <h3 className={`fw-bold mb-1 ${netProfit >= 0 ? 'text-success' : 'text-danger'}`}>{formatCurrency(netProfit)}</h3>
                 <p className="text-muted small mb-0">Net Profits Balance</p>
               </div>
             </div>
           </div>
 
-          {/* Tarjeta Inventario: Unidades Físicas Reales */}
           <div className="col-6 col-lg-3">
             <div className="card h-100 border-0 shadow-sm">
               <div className="card-body text-center">
                 <div className="rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: 48, height: 48, backgroundColor: '#e2d9f3', color: '#6f42c1' }}>
                   <i className="bi bi-clipboard-data fs-4"></i>
                 </div>
-                <h3 className="fw-bold mb-1 text-purple" style={{ color: '#6f42c1' }}>{totalStockUnits}</h3>
+                <h3 className="fw-bold mb-1" style={{ color: '#6f42c1' }}>{totalStockUnits}</h3>
                 <p className="text-muted small mb-0">Total Inventory Units</p>
               </div>
             </div>
           </div>
 
-          {/* Tarjeta Catálogo: SKUs */}
           <div className="col-6 col-lg-3">
             <div className="card h-100 border-0 shadow-sm">
               <div className="card-body text-center">
@@ -194,7 +174,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bloque de Módulos */}
         <h2 className="h4 fw-bold mb-4">Core Modules Menu</h2>
         <div className="row g-4">
           {modules.map((module) => (
@@ -218,9 +197,7 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Tablas de Monitoreo Inferiores */}
         <div className="row mt-5">
-          {/* Historial de Facturas */}
           <div className="col-lg-6 mb-4">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-header bg-white border-0 py-3">
@@ -237,65 +214,17 @@ export default function Dashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentSales.length === 0 ? (
-                        <tr><td colSpan={3} className="text-center py-4 text-muted">No sales logged in your Neon cluster yet.</td></tr>
-                      ) : (
-                        recentSales.map((sale: any) => {
-                          const details = sale.saleDetails || [];
-                          const amountPaid = details.reduce((sum: number, d: any) => sum + ((d.product?.sellingValueProduct || 0) * (d.amountProducts || 0)), 0);
-                          
-                          return (
-                            <tr key={sale.idSale}>
-                              <td><span className="fw-bold text-primary">#INV-{sale.idSale}</span></td>
-                              <td>
-                                <div className="small text-truncate" style={{ maxWidth: '240px' }}>
-                                  {details.map((d: any) => d.product?.nameProduct).join(', ') || 'N/A'}
-                                </div>
-                              </td>
-                              <td className="text-end fw-bold text-dark">${amountPaid.toFixed(2)}</td>
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Alertas de Abastecimiento Crítico */}
-          <div className="col-lg-6 mb-4">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-header bg-white border-0 py-3">
-                <h5 className="mb-0 fw-bold"><i className="bi bi-exclamation-octagon text-danger me-2"></i>Critical Low Stock Alerts</h5>
-              </div>
-              <div className="card-body p-0">
-                <div className="table-responsive">
-                  <table className="table table-hover mb-0">
-                    <thead className="table-light">
-                      <tr>
-                        <th>Product Name</th>
-                        <th className="text-center">Stock Left</th>
-                        <th className="text-end">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lowStockItems.length === 0 ? (
-                        <tr><td colSpan={3} className="text-center py-4 text-success fw-semibold">🎉 All inventory balances stable.</td></tr>
-                      ) : (
-                        lowStockItems.slice(0, 4).map((product: any) => (
-                          <tr key={product.idProduct}>
-                            <td><div className="fw-medium small text-dark">{product.nameProduct}</div></td>
-                            <td className="text-center fw-bold text-danger">{product.stock ?? 0} units</td>
-                            <td className="text-end">
-                              <span className={`badge px-2 py-1 ${(product.stock ?? 0) === 0 ? 'bg-danger text-white' : 'bg-warning text-dark'}`}>
-                                {(product.stock ?? 0) === 0 ? 'Out of Stock' : 'Low Stock'}
-                              </span>
-                            </td>
+                      {recentSales.map((sale: any) => {
+                        const details = sale.saleDetails || [];
+                        const amountPaid = details.reduce((sum: number, d: any) => sum + ((d.product?.sellingValueProduct || 0) * (d.amountProducts || 0)), 0);
+                        return (
+                          <tr key={sale.idSale} onClick={() => setSelectedDetail({ ...sale, total: amountPaid })} style={{ cursor: 'pointer' }}>
+                            <td><span className="fw-bold text-primary">#INV-{sale.idSale}</span></td>
+                            <td><div className="small text-truncate" style={{ maxWidth: '240px' }}>{details.map((d: any) => d.product?.nameProduct).join(', ')}</div></td>
+                            <td className="text-end fw-bold text-dark">{formatCurrency(amountPaid)}</td>
                           </tr>
-                        ))
-                      )}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -305,11 +234,35 @@ export default function Dashboard() {
         </div>
       </main>
 
-      <footer className="bg-white border-top py-4 mt-auto">
-        <div className="container text-center text-muted">
-          <p className="mb-0">Marcels Tecnologia celular y fotografía</p>
+      {/* 🟢 MODAL: DETALLES DE VENTA */}
+      {selectedDetail && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold">Sale Invoice Details #{selectedDetail.idSale}</h5>
+                <button type="button" className="btn-close" onClick={() => setSelectedDetail(null)}></button>
+              </div>
+              <div className="modal-body">
+                <table className="table table-striped">
+                  <thead><tr><th>Product</th><th>Quantity</th><th>Price</th><th>Subtotal</th></tr></thead>
+                  <tbody>
+                    {selectedDetail.saleDetails?.map((d: any, i: number) => (
+                      <tr key={i}>
+                        <td>{d.product?.nameProduct}</td>
+                        <td>{d.amountProducts}</td>
+                        <td>{formatCurrency(d.product?.sellingValueProduct || 0)}</td>
+                        <td>{formatCurrency(d.amountProducts * (d.product?.sellingValueProduct || 0))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="text-end fs-5 fw-bold">Total: {formatCurrency(selectedDetail.total || 0)}</div>
+              </div>
+            </div>
+          </div>
         </div>
-      </footer>
+      )}
     </div>
   )
 }

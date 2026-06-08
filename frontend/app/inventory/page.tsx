@@ -3,24 +3,37 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { type Product } from '@/lib/data' 
+import { formatCurrency } from '@/lib/utils'
 
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([])
-  const [liveCategories, setLiveCategories] = useState<any[]>([]) // 🟢 NUEVO: Estado para almacenar las categorías reales de Neon
+  const [liveCategories, setLiveCategories] = useState<any[]>([]) 
   const [loading, setLoading] = useState(true)
   
+  // 🟢 ESTADO PARA EL MODAL DE SOLO LECTURA
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([])
+
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
-  // 🟢 EFECTO CORREGIDO: Carga de forma masiva y unificada productos y categorías reales desde Spring Boot
+  // Función para cargar métodos de pago (Solo consulta)
+  const fetchPaymentMethods = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:8080/api/payment-methods')
+      const data = await res.json()
+      setPaymentMethods(Array.isArray(data) ? data : [])
+    } catch (err) { console.error("Error fetching methods", err) }
+  }
+
   useEffect(() => {
     const fetchInventoryData = async () => {
       try {
         const [resProducts, resCategories] = await Promise.all([
           fetch('http://127.0.0.1:8080/api/products'),
-          fetch('http://127.0.0.1:8080/api/categories') // 👈 Trae las categorías vivas
+          fetch('http://127.0.0.1:8080/api/categories')
         ])
 
         const productsData = await resProducts.json()
@@ -39,15 +52,13 @@ export default function InventoryPage() {
 
     fetchInventoryData()
   }, [])
+  
 
-  // Filtrado reactivo usando la lista dinámica 'products'
   const filteredProducts = products.filter((product) => {
     if (!product) return false;
     
-    // Simplificado: Ahora busca únicamente por el nombre real del producto
     const matchesSearch = product.nameProduct?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
     
-    // Obtenemos el nombre de la categoría evaluando de forma segura su relación estructurada
     const categoryName = typeof product.category === 'object' && product.category !== null
       ? (product.category as any).nameCategory
       : product.category;
@@ -100,6 +111,13 @@ export default function InventoryPage() {
             </Link>
           </div>
           <div className="d-flex align-items-center">
+            {/* 🟢 BOTÓN DE VISTA */}
+            <button 
+              className="btn btn-outline-secondary btn-sm me-3" 
+              onClick={() => { fetchPaymentMethods(); setShowPaymentModal(true); }}
+            >
+              <i className="bi bi-credit-card-2-front me-1"></i> Payment Methods
+            </button>
             <span className="badge fs-6 px-3 py-2" style={{ backgroundColor: '#6f42c1' }}>
               <i className="bi bi-clipboard-data-fill me-2"></i>Inventory Management
             </span>
@@ -187,7 +205,6 @@ export default function InventoryPage() {
                 />
               </div>
               <div className="col-md-4">
-                {/* 🟢 MAPEADO DINÁMICO: Renderiza las categorías reales traídas desde Neon */}
                 <select
                   className="form-select"
                   value={selectedCategory}
@@ -220,7 +237,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {/* Table con estructura corregida sin campos eliminados */}
+        {/* Table */}
         <div className="card border-0 shadow-sm">
           <div className="card-header bg-white border-0 py-3">
             <h5 className="mb-0 fw-bold text-dark">
@@ -245,7 +262,7 @@ export default function InventoryPage() {
                 <tbody>
                   {paginatedProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-5 text-muted">
+                      <td colSpan={6} className="text-center py-5 text-muted">
                         <i className="bi bi-search fs-1 d-block mb-3"></i>
                         <p className="mb-0">No matching items found in warehouse stock</p>
                       </td>
@@ -271,7 +288,7 @@ export default function InventoryPage() {
                             </span>
                           </td>
                           <td className="text-end fw-semibold text-primary">
-                            ${(product.sellingValueProduct || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatCurrency(product.sellingValueProduct || 0)}
                           </td>
                           <td className="text-center">
                             <span className={`badge ${status.class}`}>{status.label}</span>
@@ -284,36 +301,31 @@ export default function InventoryPage() {
               </table>
             </div>
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="card-footer bg-white border-0 py-3">
-              <div className="d-flex justify-content-between align-items-center">
-                <small className="text-muted">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
-                  {Math.min(currentPage * itemsPerPage, filteredProducts.length)} of{' '}
-                  {filteredProducts.length} products
-                </small>
-                <nav>
-                  <ul className="pagination mb-0">
-                    <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                      <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}><i className="bi bi-chevron-left"></i></button>
-                    </li>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <li key={page} className={`page-item ${currentPage === page ? 'active' : ''}`}>
-                        <button className="page-link" onClick={() => setCurrentPage(page)}>{page}</button>
-                      </li>
-                    ))}
-                    <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                      <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === totalPages}><i className="bi bi-chevron-right"></i></button>
-                    </li>
-                  </ul>
-                </nav>
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* 🟢 MODAL DE VISTA (SOLO LECTURA) */}
+      {showPaymentModal && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Métodos de Pago Disponibles</h5>
+                <button className="btn-close" onClick={() => setShowPaymentModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <ul className="list-group">
+                  {paymentMethods.map(m => (
+                    <li key={m.idPaymentMethod} className="list-group-item">
+                      {m.namePaymentMethod}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
