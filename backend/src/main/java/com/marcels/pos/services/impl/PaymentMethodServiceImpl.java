@@ -40,11 +40,11 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     @Override
     @Transactional
     public void delete(Integer id) {
-        if (!repository.existsById(id)) {
-            throw new RuntimeException("No se encontró el método de pago con ID: " + id);
-        }
-        repository.deleteById(id);
-    }
+    PaymentMethod method = repository.findById(id)
+        .orElseThrow(() -> new RuntimeException("No encontrado"));
+    method.setActive(false); // Borrado lógico
+    repository.save(method);
+}
 
     @Override
     public PaymentMethod getById(Integer id) {
