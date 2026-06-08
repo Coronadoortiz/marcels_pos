@@ -6,21 +6,33 @@ import { type Product } from '@/lib/data'
 
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([])
-  const [liveCategories, setLiveCategories] = useState<any[]>([]) // 🟢 NUEVO: Estado para almacenar las categorías reales de Neon
+  const [liveCategories, setLiveCategories] = useState<any[]>([]) 
   const [loading, setLoading] = useState(true)
   
+  // 🟢 ESTADOS AÑADIDOS PARA EL MODAL
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([])
+
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
-  // 🟢 EFECTO CORREGIDO: Carga de forma masiva y unificada productos y categorías reales desde Spring Boot
+  // Función para cargar métodos de pago
+  const fetchPaymentMethods = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:8080/api/payment-methods')
+      const data = await res.json()
+      setPaymentMethods(data)
+    } catch (err) { console.error("Error fetching methods", err) }
+  }
+
   useEffect(() => {
     const fetchInventoryData = async () => {
       try {
         const [resProducts, resCategories] = await Promise.all([
           fetch('http://127.0.0.1:8080/api/products'),
-          fetch('http://127.0.0.1:8080/api/categories') // 👈 Trae las categorías vivas
+          fetch('http://127.0.0.1:8080/api/categories')
         ])
 
         const productsData = await resProducts.json()
@@ -40,14 +52,11 @@ export default function InventoryPage() {
     fetchInventoryData()
   }, [])
 
-  // Filtrado reactivo usando la lista dinámica 'products'
   const filteredProducts = products.filter((product) => {
     if (!product) return false;
     
-    // Simplificado: Ahora busca únicamente por el nombre real del producto
     const matchesSearch = product.nameProduct?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
     
-    // Obtenemos el nombre de la categoría evaluando de forma segura su relación estructurada
     const categoryName = typeof product.category === 'object' && product.category !== null
       ? (product.category as any).nameCategory
       : product.category;
@@ -100,6 +109,13 @@ export default function InventoryPage() {
             </Link>
           </div>
           <div className="d-flex align-items-center">
+            {/* 🟢 BOTÓN DE GESTIÓN AÑADIDO */}
+            <button 
+              className="btn btn-outline-secondary btn-sm me-3" 
+              onClick={() => { fetchPaymentMethods(); setShowPaymentModal(true); }}
+            >
+              <i className="bi bi-credit-card-2-front me-1"></i> Manage Payments
+            </button>
             <span className="badge fs-6 px-3 py-2" style={{ backgroundColor: '#6f42c1' }}>
               <i className="bi bi-clipboard-data-fill me-2"></i>Inventory Management
             </span>
@@ -187,7 +203,6 @@ export default function InventoryPage() {
                 />
               </div>
               <div className="col-md-4">
-                {/* 🟢 MAPEADO DINÁMICO: Renderiza las categorías reales traídas desde Neon */}
                 <select
                   className="form-select"
                   value={selectedCategory}
@@ -220,7 +235,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {/* Table con estructura corregida sin campos eliminados */}
+        {/* Table */}
         <div className="card border-0 shadow-sm">
           <div className="card-header bg-white border-0 py-3">
             <h5 className="mb-0 fw-bold text-dark">
@@ -245,7 +260,7 @@ export default function InventoryPage() {
                 <tbody>
                   {paginatedProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-5 text-muted">
+                      <td colSpan={6} className="text-center py-5 text-muted">
                         <i className="bi bi-search fs-1 d-block mb-3"></i>
                         <p className="mb-0">No matching items found in warehouse stock</p>
                       </td>
@@ -314,6 +329,30 @@ export default function InventoryPage() {
           )}
         </div>
       </div>
+
+      {/* 🟢 MODAL EMERGENTE DE GESTIÓN */}
+      {showPaymentModal && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Manage Payment Methods</h5>
+                <button type="button" className="btn-close" onClick={() => setShowPaymentModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <ul className="list-group">
+                  {paymentMethods.map(m => (
+                    <li key={m.idPaymentMethod} className="list-group-item d-flex justify-content-between align-items-center">
+                      {m.namePaymentMethod}
+                      <button className="btn btn-sm btn-danger">Delete</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
