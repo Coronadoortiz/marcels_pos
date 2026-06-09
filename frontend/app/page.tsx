@@ -50,9 +50,9 @@ const modules = [
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
   const [sales, setSales] = useState<any[]>([])
-  const [purchases, setPurchases] = useState<any[]>([])
+  const [purchases, setPurchases] = useState<any[]>([]) 
   const [loading, setLoading] = useState(true)
-  const [selectedDetail, setSelectedDetail] = useState<any | null>(null) // 🟢 NUEVO: Estado detalle
+  const [selectedDetail, setSelectedDetail] = useState<any | null>(null)
 
   useEffect(() => {
     const fetchDashboardMetrics = async () => {
@@ -231,10 +231,49 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {/* 🟢 NUEVO: TABLA DE ALERTAS DE STOCK */}
+          <div className="col-lg-6 mb-4">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-header bg-white border-0 py-3">
+                <h5 className="mb-0 fw-bold"><i className="bi bi-exclamation-octagon text-danger me-2"></i>Critical Low Stock Alerts</h5>
+              </div>
+              <div className="card-body p-0">
+                <div className="table-responsive">
+                  <table className="table table-hover mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th>Product Name</th>
+                        <th className="text-center">Stock Left</th>
+                        <th className="text-end">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lowStockItems.length === 0 ? (
+                        <tr><td colSpan={3} className="text-center py-4 text-success fw-semibold">🎉 All inventory balances stable.</td></tr>
+                      ) : (
+                        lowStockItems.slice(0, 4).map((product: any) => (
+                          <tr key={product.idProduct}>
+                            <td><div className="fw-medium small text-dark">{product.nameProduct}</div></td>
+                            <td className="text-center fw-bold text-danger">{product.stock ?? 0} units</td>
+                            <td className="text-end">
+                              <span className={`badge px-2 py-1 ${(product.stock ?? 0) === 0 ? 'bg-danger text-white' : 'bg-warning text-dark'}`}>
+                                {(product.stock ?? 0) === 0 ? 'Out of Stock' : 'Low Stock'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 
-      {/* 🟢 MODAL: DETALLES DE VENTA */}
+      {/* MODAL: DETALLES DE VENTA */}
       {selectedDetail && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-lg modal-dialog-centered">
@@ -258,6 +297,9 @@ export default function Dashboard() {
                   </tbody>
                 </table>
                 <div className="text-end fs-5 fw-bold">Total: {formatCurrency(selectedDetail.total || 0)}</div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-primary" onClick={() => setSelectedDetail(null)}>Close</button>
               </div>
             </div>
           </div>
